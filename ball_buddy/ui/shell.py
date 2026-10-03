@@ -18,7 +18,7 @@ from ball_buddy.ui.views.draft import DraftView
 from ball_buddy.ui.views.league import LeagueView
 from ball_buddy.ui.views.lineups import LineupView
 from ball_buddy.ui.views.matchup import MatchupView
-from ball_buddy.ui.views.placeholders import PlaceholderView
+from ball_buddy.ui.views.trades import TradeView
 from ball_buddy.ui.views.waivers import WaiverView
 
 # Sentence-case labels, no emoji; Draft selected by default.
@@ -85,8 +85,12 @@ class MainWindow(QMainWindow):
                 stack.addWidget(WaiverView(self.sync_service))
             elif label == "Lineups":
                 stack.addWidget(LineupView(self.sync_service))
+            elif label == "Trades":
+                stack.addWidget(TradeView(self.sync_service))
             else:
-                stack.addWidget(PlaceholderView(label.lower() + " — coming soon"))
+                # Every NAV_ITEMS label has a real view (M6.2); a future label
+                # must add a branch here rather than silently missing a page.
+                raise AssertionError(f"unhandled NAV_ITEMS label: {label!r}")
         stack.setCurrentIndex(NAV_ITEMS.index("Draft"))
         self.stack = stack
         return stack

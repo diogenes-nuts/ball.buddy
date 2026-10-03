@@ -1,6 +1,6 @@
 # 005_advisor — status
 
-Advisor logic over 004_engine (SPEC §6). **M4 + M5 + M6.1 (trade domain) complete**; M6.2 (trade view) remaining in dev.md.
+Advisor logic over 004_engine (SPEC §6). **M4 + M5 + M6 complete** (waiver, lineup, trade — domain + view each).
 
 ## Files
 
@@ -27,8 +27,13 @@ Advisor logic over 004_engine (SPEC §6). **M4 + M5 + M6.1 (trade domain) comple
 - `ball_buddy/domain/trade.py` — headless: `Trade` (my_give/their_give display-name tuples) + `TradeResult` (per-side baseline/delta P(win), deterministic before/after gaps from each side's own perspective, `fairness_flag` when my delta < −0.10, human `summary` with fairness verdict). `analyze_trade` reuses `engine.project_roster` / `win_prob` / `matchup` unchanged; one seeded MC run serves both sides (opponent = `1 − my_p`; pushes treated as losses for both — documented). Validation: one `ValueError` listing every pool/roster miss (never silent), both-sides-empty rejected, roster (non-give) names pool-checked. Pure python, no Qt.
 - `tests/domain/test_trade.py` — 11 cases (waiver-style fixtures, trials=50 shared seed, symmetry at 2000 trials, 2-for-2 swap, roster-miss raise, summary format).
 
+## Trade view (M6.2)
+
+- `ball_buddy/ui/views/trades.py` — Trades page: my team/opponent combos (waivers/lineups pattern; **no week picker** — `analyze_trade` scores season projections, a week control would be dead UI, justified in the module docstring), seed spin (0..2^31-1, default 42) + trials spin (1..100_000, default 200 = domain default), **Analyze** runs `domain/trade.analyze_trade` synchronously (seconds-scale, no worker thread). Trade entry: "I give" / "They give" combos filled with the current teams' resolved roster names (`_team_roster_names` is a module-level function in `waivers.py`, duplicated here verbatim, no import) + Add/Remove rows in a give grid; selected gives cleared on team/opponent change (a stale give would otherwise raise from the domain). Renders: per-side 9-cat tables (Before/After/Delta, `CAT_LABELS` + lineups' `_fmt_gap` pattern, fixed-height 9*28+40), summary line `"you: b -> b+d   them: b -> b+d   (seed s, t trials)"`. Success banner = `result.summary` (contains the fairness verdict "likely a bad deal") + unresolved-name notes; `analyze_trade` ValueError (e.g. both sides empty) -> banner with tables cleared; empty roster -> "Empty roster..." banner (waivers pattern). `shell.py` wires "Trades" -> TradeView; all NAV_ITEMS now have real views, so the old PlaceholderView fall-through was replaced with a loud `AssertionError` (future labels must add a branch, not silently get a placeholder) and `ui/views/placeholders.py` deleted. Theme tokens only (title/secondary/banner objectNames, `ink` property on the primary button).
+- `tests/ui/test_trade_view.py` — 6 cases (P1-P4 fixture, Red vs Blue): happy path (banner "you"/"them", 9x2 tables, summary seed/trials), fairness flag on P1-for-P4 ("bad deal"), both-sides-empty domain ValueError -> banner, no-snapshot banner, ghost keeper -> "Empty roster" + name in banner (no raise), trials spinbox reflected in summary.
+
 ## Next (dev.md)
 
-- M6.2: Trades page (UI) — trade entry + analyze via `domain/trade.analyze_trade`, result tables + fairness verdict.
+- (none — M6 complete; next roadmap item is M7 packaging).
 
 Plans: dev.md. History: git log; done.md.
