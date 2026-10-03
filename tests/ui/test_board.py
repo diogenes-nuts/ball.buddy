@@ -158,6 +158,103 @@ def test_picked_cell_shows_pool_value(qapp, tmp_path):
     assert "did not match the pool" in board.alert_banner.text()
 
 
+SUGGEST_POOL = [
+    {"name": "One Aardvark", "pos": "PG", "rank": "1", "value": "99"},
+    {"name": "Two Bumble", "pos": "SG", "rank": "2", "value": "90"},
+    {"name": "Three Cheetah", "pos": "SF", "rank": "3", "value": "80"},
+    {"name": "Four Deer", "pos": "PF", "rank": "4", "value": "70"},
+    {"name": "Five Eagle", "pos": "C", "rank": "5", "value": "60"},
+    {"name": "Six Fox", "pos": "PG", "rank": "6", "value": "50"},
+]
+
+
+def _suggest_names(board: DraftBoard) -> list[str]:
+    return [
+        board.suggest_grid.item(r, 0).text() for r in range(board.suggest_grid.rowCount())
+    ]
+
+
+def test_suggest_panel_lists_top_n_excluding_drafted_and_kept(qapp, tmp_path):
+    board = make_board(tmp_path, [KeeperEntry("Red", "One Aardvark", 1)])
+    write_pool(board.service, SUGGEST_POOL)
+    board.refresh()
+    # top-5 ranked, and the kept player (rank 1) is excluded
+    assert _suggest_names(board) == [
+        "Two Bumble",
+        "Three Cheetah",
+        "Four Deer",
+        "Five Eagle",
+        "Six Fox",
+    ]
+    # header + cells: pos/value/rank passthrough
+    assert board.suggest_grid.item(0, 1).text() == "SG"
+    assert board.suggest_grid.item(0, 2).text() == "90"
+    assert board.suggest_grid.item(0, 3).text() == "2"
+    # commit a pick: it disappears from the suggestions on the next render
+    board.name_edit.setText("Two Bumble")
+    board.commit_button.click()
+    assert _suggest_names(board) == [
+        "Three Cheetah",
+        "Four Deer",
+        "Five Eagle",
+        "Six Fox",
+    ]
+
+
+def test_suggest_panel_opted_out_keeper_stays_suggestable(qapp, tmp_path):
+    # an opted-out keeper's pick is not forfeited, so the player is still
+    # draftable and must remain in the suggestions (unlike an active keeper)
+    board = make_board(
+        tmp_path, [KeeperEntry("Red", "One Aardvark", 1, opted_out=True)]
+    )
+    write_pool(board.service, SUGGEST_POOL)
+    board.refresh()
+    assert _suggest_names(board)[0] == "One Aardvark"
+    # ...and the pick cell itself is open, not a keeper forfeit
+    assert board.grid.item(0, 0).text() == ""
+
+
+def test_suggest_panel_unranked_row_shows_dash(qapp, tmp_path):
+    board = make_board(tmp_path, [])
+    rows = [dict(r) for r in SUGGEST_POOL[:4]]
+    rows.append({"name": "Unranked Otter", "pos": "PF", "rank": "", "value": "10"})
+    write_pool(board.service, rows)
+    board.refresh()
+    names = _suggest_names(board)
+    assert names[-1] == "Unranked Otter"
+    assert board.suggest_grid.item(len(names) - 1, 3).text() == "—"
+
+
+def test_suggest_panel_alias_bridged_pick_excluded(qapp, tmp_path):
+    board = make_board(tmp_path, [])
+    write_pool(board.service, SUGGEST_POOL)
+    board.refresh()
+    # "Two Bum" containment-bridges to the pool name "Two Bumble", so both
+    # the entered name and the pool name must leave the suggestions.
+    board.name_edit.setText("Two Bum")
+    board.commit_button.click()
+    assert "Two Bumble" not in _suggest_names(board)
+
+
+def test_suggest_panel_empty_when_pool_missing(qapp, tmp_path):
+    board = make_board(tmp_path, [])
+    assert board.suggest_grid.rowCount() == 0
+    assert "—" in board.suggest_title.text()
+
+
+def test_suggest_panel_clears_when_draft_complete(qapp, tmp_path):
+    # 1 team x 1 round would be needed to finish 13 rounds x 2 teams cheaply;
+    # instead fill all 26 picks via the keeper-free board.
+    board = make_board(tmp_path, [])
+    write_pool(board.service, SUGGEST_POOL)
+    board.refresh()
+    for i in range(len(board.snake)):
+        board.name_edit.setText(f"Filler {i}")
+        board.commit_button.click()
+    assert board.suggest_grid.rowCount() == 0
+    assert "draft complete" in board.suggest_title.text()
+
+
 def test_no_snapshot_shows_alert(qapp, tmp_path):
     service = make_service(tmp_path)
     board = DraftBoard(service, [])

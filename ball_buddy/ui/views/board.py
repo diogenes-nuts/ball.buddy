@@ -28,6 +28,7 @@ from ball_buddy.domain.keepers import KeeperEntry
 from ball_buddy.domain.league import Pick
 from ball_buddy.domain.naming import bridge
 from ball_buddy.domain.players import PlayerPool
+from ball_buddy.domain.recommend import recommend
 from ball_buddy.services.sync import SyncService
 
 
@@ -108,6 +109,27 @@ class DraftBoard(QWidget):
         self.grid.cellClicked.connect(self._cell_clicked)
         inner.addWidget(self.grid, 1)
 
+        # --- suggested top-N pool players (M2.3) ---------------------------------
+        suggest_panel = QWidget()
+        suggest_panel.setObjectName("panel")
+        inner.addWidget(suggest_panel, 0)
+        suggest_inner = QVBoxLayout(suggest_panel)
+        suggest_inner.setContentsMargins(8, 8, 8, 8)
+        suggest_inner.setSpacing(4)
+        self.suggest_title = QLabel("Suggested pool players")
+        self.suggest_title.setObjectName("title")
+        suggest_inner.addWidget(self.suggest_title)
+        self.suggest_grid = QTableWidget(0, 4)
+        self.suggest_grid.setHorizontalHeaderLabels(["Player", "Pos", "Value", "Rank"])
+        self.suggest_grid.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.suggest_grid.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.suggest_grid.verticalHeader().setVisible(False)
+        self.suggest_grid.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        self.suggest_grid.setMaximumHeight(140)
+        suggest_inner.addWidget(self.suggest_grid, 0)
+
         self.refresh()
 
     # -- data loading ----------------------------------------------------------
@@ -125,6 +147,7 @@ class DraftBoard(QWidget):
             self.current_label.setText("")
             self.commit_button.setEnabled(False)
             self.undo_button.setEnabled(False)
+            self._render_suggestions()
             return
 
         self.start_order = picks_mod.start_order_for(
@@ -161,7 +184,7 @@ class DraftBoard(QWidget):
     # -- rendering ---------------------------------------------------------------
 
     def render(self) -> None:
-        """Redraw the grid + strip from self.snake / self.picks."""
+        """Redraw the grid, strip, and suggest panel from self.snake / self.picks."""
         teams = len(self.start_order)
         if not teams:
             return
@@ -174,7 +197,11 @@ class DraftBoard(QWidget):
             self._pool.names(),
             self.service.load_aliases(),
         )
-        self.name_edit.setCompleter(QCompleter(self._poolable_names(report)))
+        self.name_edit.setCompleter(
+            QCompleter(
+                [n for n in self._pool.names() if n not in self._excluded_names(report)]
+            )
+        )
         for pick in self.snake:
             r, c = pick.round - 1, pick.order - 1
             if pick.forfeited:
@@ -192,6 +219,7 @@ class DraftBoard(QWidget):
                     )
             self.grid.setItem(r, c, QTableWidgetItem(text))
         self._render_strip()
+        self._render_suggestions(report)
 
     def _render_strip(self) -> None:
         current = picks_mod.current_pick(self.snake, self.picks)
@@ -214,18 +242,61 @@ class DraftBoard(QWidget):
         self.grid.setCurrentCell(grid_row, grid_col)
         self.grid.selectRow(grid_row)
 
+    def _render_suggestions(self, report=None) -> None:
+        """Top-N pool players (rank order) minus drafted/kept, in the panel."""
+        if report is None:
+            report = bridge(
+                [pick.player for pick in self.picks],
+                self._pool.names(),
+                self.service.load_aliases(),
+            )
+        grid = self.suggest_grid
+        if not self._pool.rows:
+            self.suggest_title.setText("Suggested pool players —")
+            grid.setRowCount(0)
+            return
+        if picks_mod.current_pick(self.snake, self.picks) is None:
+            self.suggest_title.setText("Suggested pool players — draft complete")
+            grid.setRowCount(0)
+            return
+        suggestions = recommend(self._pool.rows, self._excluded_names(report))
+        self.suggest_title.setText(f"Suggested pool players (top {len(suggestions)})")
+        grid.setRowCount(len(suggestions))
+        for r, suggestion in enumerate(suggestions):
+            for c, text in enumerate(
+                [
+                    suggestion.name,
+                    suggestion.pos,
+                    suggestion.value,
+                    str(suggestion.rank) if suggestion.rank is not None else "—",
+                ]
+            ):
+                grid.setItem(r, c, QTableWidgetItem(text))
+
     def _value_of(self, entered_name: str, bridged: str | None) -> str:
         row = self._pool.get(bridged or entered_name)
         return (row or {}).get("value", "") or ""
 
-    def _poolable_names(self, report=None) -> list[str]:
-        """Pool names minus already-drafted / kept player names."""
-        excluded = {entry.player for entry in self.keepers}
+    def _excluded_names(self, report=None) -> set[str]:
+        """Names to keep out of suggestions: drafted/kept + bridged pool names.
+
+        Shared by the pick-name completer and the M2.3 suggest panel. With a
+        ``report`` (bridged picks) its matched pairs exclude both sides;
+        without one the raw entered pick names are used directly. Opted-out
+        keepers are excluded from the forfeited-pick grid but their player
+        stays draftable, so they remain suggestable.
+        """
+        excluded = {entry.player for entry in self.keepers if not entry.opted_out}
         if report is None:
             excluded |= {pick.player for pick in self.picks}
         else:
             excluded |= set(report.matched)
             excluded |= set(report.matched.values())
+        return excluded
+
+    def _poolable_names(self, report=None) -> list[str]:
+        """Pool names minus already-drafted / kept player names."""
+        excluded = self._excluded_names(report)
         return [name for name in self._pool.names() if name not in excluded]
 
     # -- actions -----------------------------------------------------------------
