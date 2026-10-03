@@ -14,6 +14,7 @@ UI shows a "stale — last synced <ts>" banner (plan §3).
 from __future__ import annotations
 
 import json
+import shutil
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -55,6 +56,19 @@ class SyncService:
 
     def save_settings(self, settings: dict) -> None:
         auth.save_settings(self.data_dir, settings)
+
+    def reset_all_data(self) -> bool:
+        """Wipe the whole data dir (settings, tokens, pool, snapshot, keepers, picks).
+
+        Everything recreates on the next save (all savers mkdir parents), and
+        all loaders treat a missing file as the empty default — so the app
+        keeps running on its in-memory state; restart for a truly clean slate.
+
+        Returns True if the dir is fully wiped; False if something is still
+        there (e.g. a locked file), so callers can tell the user.
+        """
+        shutil.rmtree(self.data_dir, ignore_errors=True)
+        return not self.data_dir.exists()
 
     @property
     def logged_in(self) -> bool:

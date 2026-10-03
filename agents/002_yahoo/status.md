@@ -7,7 +7,7 @@ Yahoo adapter: the only module that talks to the Yahoo API. Real wrapper is **`y
 - `ball_buddy/io/yahoo/client.py` — facade over yfpy `YahooFantasySportsQuery`; deferred import (missing consumer key surfaces as `LoginRequiredError`, not yfpy's `sys.exit(1)`); lazy instance; `LoginRequiredError` / `YahooError`.
 - `ball_buddy/io/yahoo/snapshot.py` — maps yfpy models to small explicit dict shapes → stable `snapshot.json` (league, teams, draft order, schedule).
 - `ball_buddy/io/state.py` — salvaged atomic-write JSON (from autodraft `state.py`): tmp+rename, no torn files.
-- `ball_buddy/services/sync.py` — `SyncService(data_dir)`: settings (league_id, consumer key in `data/settings.json`), `sync()` → snapshot, login-required / offline fallback to last snapshot; manual team-order support.
+- `ball_buddy/services/sync.py` — `SyncService(data_dir)`: settings (league_id, consumer key in `data/settings.json`), `sync()` → snapshot, login-required / offline fallback to last snapshot; manual team-order support; `reset_all_data()` wipes the whole data dir (M7.2 — all loaders treat missing files as empty defaults, so the app keeps running until restart).
 - Settings UI: `SettingsDialog` + button in `ball_buddy/ui/views/league.py`; `data/` is gitignored (tokens).
 
 ## Behavior

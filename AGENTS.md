@@ -1,5 +1,7 @@
 # Project
 
+Friend-facing first-run guide: `README.md` (run the exe, sign-in/sync/import steps, reset, app.log).
+
 ## Info
 
 _Build, test, and run commands + environment notes. Brief; no function/structure detail (that lives in component status docs under agents/)._

@@ -1,13 +1,11 @@
 # scaffold — done
 
-## 2026-10-03 — M0 — Repo scaffold: pyproject with pinned deps (PySide6 6.11.2 on Python 3.14.7), PySide6 shell (left nav sidebar + tactile-cream-ui theme, Draft placeholder view), 5 passing tests, ruff clean, PyInstaller onedir exe builds and runs, AGENTS.md filled with build/test/run commands.
+## 2026-10-03 — M7.1 — Exe packaging foundations (slice 1/2 of M7): frozen-aware resolve_data_dir (exe writes data/ next to itself, not into _internal; dev path unchanged), shared app-icon painter (cream/basketball, tactile-cream) wired to both the window icon and a build-time PNG-in-ICO generator (scripts/make_icon.py, zero new deps) with assets/icon.ico committed and added to ball.buddy.spec + AGENTS.md build command. 3 new tests (frozen/dev branches, shell data_dir+icon). 228 tests green, ruff clean, exe rebuilt with icon.
 
-Deliverables as committed:
-
-- `pyproject.toml` — Python 3.14; pinned PySide6 6.11.2, pytest 9.1.1, ruff 0.16.10, pyinstaller 6.22.3 (conservative pins: newest releases resolvable on Py-3.14 on this machine; risk per SPEC §10 item 4).
-- `ball_buddy/` package — `main.py` entry; `ui/shell.py` `MainWindow` (200px left sidebar: League/Matchup/Waivers/Lineups/Trades/Draft; QStackedWidget views; Draft checked by default); `ui/theme.py` tactile-cream-ui light theme (cream palette, 2px hard outlines, monospace, dense; QSS workarounds documented); styled placeholder Draft view + minimal placeholders for the rest.
-- `tests/` — 5 tests, all passing; offscreen construction via QT_QPA_PLATFORM=offscreen; widget-order + nav-state assertions.
-- ruff config in pyproject; `ruff check .` clean.
-- PyInstaller: onedir `--windowed --name ball.buddy --collect-submodules PySide6` → `dist/ball.buddy/ball.buddy.exe` builds and launches (event loop runs).
-- `AGENTS.md` Info section: setup/run/test/lint/build commands + environment notes (system Python 3.14.7, repo-local .venv, theme constraints).
-- Reviewer verdict PASS; post-review fixes: `QPushButton:focus` rule added (theme.py), sidebar/stack order corrected so the nav renders left (shell.py).
+- `ball_buddy/pathing.py` — `resolve_data_dir()`: `sys.frozen` → `Path(sys.executable).resolve().parent / "data"`; dev → repo-root `data/` (identical to old inline `parents[2]` in shell.py). shell.py now consumes it; no other independent data-dir computation in prod code (verified by grep — all consumers get `data_dir` from SyncService).
+- `ball_buddy/ui/appicon.py` — `draw_app_icon(size)`: cream #F4EBDD rounded square, 2px #2B2620 outline, orange ball + seams. Single source for window icon (shell.py setWindowIcon, QPixmap.fromImage) and the .ico.
+- `scripts/make_icon.py` — offscreen QGuiApplication (env set before PySide6 import), 256×256 → PNG in a TemporaryDirectory → PNG-in-ICO (ICONDIR + one 256×256 32bpp entry, offset 22). Deterministic fixed constants; committed `assets/icon.ico` (11,557 bytes, header `00 00 01 00`) reproducible.
+- `ball.buddy.spec` — `icon=['assets/icon.ico']`; collect_submodules PySide6 + onedir intact, matches AGENTS.md CLI (`--icon assets\icon.ico` added there too).
+- Tests: `tests/test_pathing.py` (frozen branch via monkeypatch sys.frozen/executable → tmp_path/"data"; dev branch vs independently computed repo root), `tests/test_shell.py::test_data_dir_and_window_icon` (window.data_dir == resolve_data_dir(), 16px icon pixmap non-null).
+- Reviewer: no defects; nits (make_icon ignores QImage.save return; build-script QApplication never quit) left as-is.
+- Exe rebuilt: dist\ball.buddy\ball.buddy.exe (5.46 MB) with icon. Verify: 228 passed / 1 skipped, ruff clean, offscreen smoke printed repo data_dir + non-null icon.

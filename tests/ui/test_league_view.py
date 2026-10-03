@@ -162,6 +162,56 @@ def test_settings_dialog_saves_credentials(qapp, tmp_path):
     assert view.settings_button is not None
 
 
+def test_settings_dialog_has_reset_button(qapp, tmp_path):
+    from ball_buddy.ui.views.league import SettingsDialog
+
+    view = make_view(tmp_path, qapp)
+    dialog = SettingsDialog(view.service, view)
+    assert dialog.reset_button is not None
+    assert dialog.reset_button.text() == "Reset all data…"
+
+
+def test_settings_reset_yes_wipes_data(qapp, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from ball_buddy.ui.views.league import SettingsDialog
+
+    view = make_view(tmp_path, qapp)
+    view.service.save_settings({"league_id": "1234"})
+    (tmp_path / "yahoo_tokens.json").write_text("{}", encoding="utf-8")
+    assert view.service.data_dir.exists()
+
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes),
+    )
+    dialog = SettingsDialog(view.service, view)
+    dialog._reset()
+    assert not view.service.data_dir.exists()  # wiped: settings + tokens gone
+    assert "Reset complete" in dialog.reset_status.text()
+
+
+def test_settings_reset_no_keeps_data(qapp, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from ball_buddy.ui.views.league import SettingsDialog
+
+    view = make_view(tmp_path, qapp)
+    view.service.save_settings({"league_id": "1234"})
+
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        staticmethod(lambda *a, **k: QMessageBox.StandardButton.No),
+    )
+    dialog = SettingsDialog(view.service, view)
+    dialog._reset()
+    assert view.service.data_dir.exists()
+    assert view.service.settings()["league_id"] == "1234"
+    assert dialog.reset_status.text() == ""
+
+
 def test_manual_order_applied_when_no_live_order(qapp, tmp_path):
     view = make_view(tmp_path, qapp)
     service = view.service

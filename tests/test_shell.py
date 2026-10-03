@@ -41,3 +41,12 @@ def test_click_league_switches_stack(qapp: QApplication) -> None:
     assert league_button is not None
     league_button.click()
     assert window.stack.currentIndex() == NAV_ITEMS.index("League")
+
+
+def test_clicking_every_nav_item_switches_stack(qapp: QApplication) -> None:
+    window = MainWindow()
+    for index, _label in enumerate(NAV_ITEMS):
+        button = window.nav_group.button(index)
+        assert button is not None
+        button.click()
+        assert window.stack.currentIndex() == index

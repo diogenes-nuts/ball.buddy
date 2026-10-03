@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QSplitter,
     QTableWidget,
@@ -81,12 +82,42 @@ class SettingsDialog(QDialog):
         form.addRow("Consumer key:", self.consumer_key_edit)
         form.addRow("Consumer secret:", self.consumer_secret_edit)
         form.addRow(note)
+        self.reset_button = QPushButton("Reset all data…")
+        # No "danger" theme token exists; the ink-fill primary style is the
+        # strongest available visual weight, so the destructive action reads
+        # as the heaviest control in the dialog.
+        self.reset_button.setProperty("ink", "true")
+        self.reset_button.clicked.connect(self._reset)
+        form.addRow(self.reset_button)
+        self.reset_status = QLabel("")
+        self.reset_status.setObjectName("secondary")
+        form.addRow(self.reset_status)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
         buttons.accepted.connect(self._save)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
+
+    def _reset(self) -> None:
+        """Wipe the whole data dir (login/tokens AND league data)."""
+        answer = QMessageBox.question(
+            self,
+            "Reset all data",
+            "This deletes ALL local data: your Yahoo login and saved tokens, "
+            "league settings, imported player pool, snapshot, keepers, and draft "
+            "picks. You will have to sign in to Yahoo and import the pool again.\n\n"
+            "Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        self.service.reset_all_data()
+        self.reset_status.setText(
+            "Reset complete — restart the app for a fully clean slate "
+            "(the running app keeps its in-memory state)."
+        )
 
     def _save(self) -> None:
         settings = self.service.settings()
