@@ -149,18 +149,7 @@ category-by-category before/after, and a fairness flag. No MVP commitment.
 
 ## 7. Phases
 
-| Phase | Deliverable | Exit criteria |
-|---|---|---|
-| **M0** | Scaffold: `/init-docs` repo per doc-structure, `pyproject.toml`, PySide6 skeleton (main window + nav), PyInstaller onedir build producing a runnable exe, pytest/ruff green on the shell | exe runs; local verify commands documented in AGENTS.md |
-| **M1** | 002_yahoo + 003_league + 001_data: OAuth login, sync league/teams/draft order/schedule, JSON snapshot persisted; pool import in-app (Hashtag salvage) | login→sync works against the real league; pool loaded with matched names; stale/offline fallback shows last snapshot |
-| **M2** | **006_board draft mode (first feature, §1.2)**: snake draft board with keeper-aware forfeited picks, bulk keeper entry (24 keepers, per-keeper opt-out), pick-by-pick live tracking, pool-based value recommender (salvaged `003_board` + ValueGapScorer) | board correctly shows the 12-team snake with all forfeited keeper picks; keeper entry round-trips; recommender rankings sane on the real pool |
-| **M3** | 004_engine: matchup view (headline P(win), 9-cat gap bars, player marginal table) | the matchup screen is correct by hand-check on one real week |
-| **M4** | 005_advisor waiver ranking (§6.1) | ranked list with ΔP(win) per candidate |
-| **M5** | 005_advisor lineup optimizer (§6.2), per-day | daily recommendations + explanations |
-| **M6** | Trade analyzer (§6.3) | — |
-| **M7** | Packaging polish: installer-grade exe folder, icon, settings reset, error UX | hand to a friend; it works |
-
-M2 is the first thing the user opens (this draft). M3–M5 = "the app I open every week." M6–M7 are explicitly secondary.
+Build order lives in `agents/ROADMAP.md` (M0 scaffold → M1 league sync → M2 draft board (first feature) → M3 matchup view → M4 waivers → M5 lineups → M6 trades → M7 packaging). Per-component plans live in `agents/<NNN>/dev.md` as they are written.
 
 ## 8. Salvage from AutoDraft (`N:\LLM\projects\autodraft`, untouched)
 

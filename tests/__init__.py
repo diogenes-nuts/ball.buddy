@@ -1,0 +1,1 @@
+# Tests for ball.buddy.

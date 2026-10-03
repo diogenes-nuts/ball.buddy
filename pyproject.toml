@@ -1,0 +1,36 @@
+[project]
+name = "ball-buddy"
+version = "0.0.0"
+description = "Matchup-aware H2H fantasy basketball companion (M0 scaffold)"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    # Exact pins: newest Py-3.14-resolvable releases, verified via pip on 3.14.7.
+    # Fallbacks (first versions with stable 3.14 support) if wheels fail here:
+    #   PySide6 6.10.3, pytest 9.0.3, pyinstaller 6.19.0
+    "PySide6==6.11.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.16.10",
+    "pyinstaller==6.22.3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ball_buddy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+exclude = ["dist", "build", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

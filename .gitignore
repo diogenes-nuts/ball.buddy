@@ -1,4 +1,7 @@
 venv/
 .venv/
+dist/
+build/
 node_modules/
 __pycache__/
+.pytest_cache/
