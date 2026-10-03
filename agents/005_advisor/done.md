@@ -21,4 +21,10 @@
 - Known documented gap: best SET unslot-able -> raises instead of next-best-set fallback.
 - Verify: 202 passed / 1 skipped, ruff clean.
 
+## 2026-10-03 — M5.2 — Lineups view (slice 2/2 — M5 complete): Lineups page with week/opponent context, per-player playing toggles, Optimize via domain/lineup.optimize (gap mode instant, optional seeded MC with visible P(win)), 10-starters-by-slot table + sits with rationale + 9-cat outlook, ValueError -> banner not crash. 207 tests green, ruff clean, exe rebuilt.
+
+- `ui/views/lineups.py` (wired into shell): context row, playing toggles, Optimize with mc_trials/seed spinboxes (default 0 = instant gap mode; MC shows P(win) with visible seed), starters/sits/rationale/9-cat outlook tables; reuse domain/lineup.optimize (zero search code in view — verified by grep); banner on unfillable-slot ValueError (reproduced offscreen: 'only 9 playable row(s)'); theme tokens only.
+- Reviewer: all flagged items hand-verified non-defects except success-banner wording (fixed: separate `_DONE_NOTE`); starter-toggle test coverage nit left (non-blocking).
+- Exe rebuilt (lineups.py newer than dist). Verify: 207 passed / 1 skipped, ruff clean, offscreen smoke OK (starters by slot, 4 sits, MC 0.51 seed 7, error banner).
+
 ## 2026-10-03 — M5.2 — Lineup view (UI, slice 2/2 of M5): Lineups page in shell — team/opp/week combos, per-player play toggles (checked=playing; all checked → playing=None), mc_trials default 0 (deterministic gap mode) + seed, Optimize → domain.lineup.optimize (reuse), 10-slot starter table with per-starter projected pts, sits + rationale (toggled-off players shown display-only), 9-cat outlook (gap + W/L/T) + cat-win margin + optional seeded P(win); ValueError → banner with slot named + cleared tables; IR slot display-only note. 207 tests green (5 new UI tests), ruff clean, offscreen MainWindow smoke OK.

@@ -10,4 +10,4 @@ One line per component: NNN_name — what it does (one sentence).
 - 003_league — local league model: teams, draft order, schedule, manual team order
 - 006_board — draft-day board (M2 complete): keeper entry + snake board + pool value recommender
 - 004_engine — 9-cat projection engine (gap mode + seeded MC win-prob, configurable tie-break) + Matchup view (M3 complete)
-- 006_board — draft board: keeper entry (M2.1) + live draft board (M2.2)
+- 005_advisor — waiver ranking (FAAB-aware delta-P) + lineup optimizer (start/sit) + trade analyzer domain, views for the first two (M4+M5+M6.1); trade view next (M6.2)
