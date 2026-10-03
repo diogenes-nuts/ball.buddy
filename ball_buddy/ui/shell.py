@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from ball_buddy.services.sync import SyncService
 from ball_buddy.ui.views.draft import DraftView
 from ball_buddy.ui.views.league import LeagueView
+from ball_buddy.ui.views.lineups import LineupView
 from ball_buddy.ui.views.matchup import MatchupView
 from ball_buddy.ui.views.placeholders import PlaceholderView
 from ball_buddy.ui.views.waivers import WaiverView
@@ -82,6 +83,8 @@ class MainWindow(QMainWindow):
                 stack.addWidget(MatchupView(self.sync_service))
             elif label == "Waivers":
                 stack.addWidget(WaiverView(self.sync_service))
+            elif label == "Lineups":
+                stack.addWidget(LineupView(self.sync_service))
             else:
                 stack.addWidget(PlaceholderView(label.lower() + " — coming soon"))
         stack.setCurrentIndex(NAV_ITEMS.index("Draft"))
