@@ -18,6 +18,7 @@ from ball_buddy.ui.views.draft import DraftView
 from ball_buddy.ui.views.league import LeagueView
 from ball_buddy.ui.views.matchup import MatchupView
 from ball_buddy.ui.views.placeholders import PlaceholderView
+from ball_buddy.ui.views.waivers import WaiverView
 
 # Sentence-case labels, no emoji; Draft selected by default.
 NAV_ITEMS: tuple[str, ...] = ("League", "Matchup", "Waivers", "Lineups", "Trades", "Draft")
@@ -79,6 +80,8 @@ class MainWindow(QMainWindow):
                 stack.addWidget(DraftView(self.sync_service))
             elif label == "Matchup":
                 stack.addWidget(MatchupView(self.sync_service))
+            elif label == "Waivers":
+                stack.addWidget(WaiverView(self.sync_service))
             else:
                 stack.addWidget(PlaceholderView(label.lower() + " — coming soon"))
         stack.setCurrentIndex(NAV_ITEMS.index("Draft"))

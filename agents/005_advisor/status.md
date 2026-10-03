@@ -1,6 +1,17 @@
 # 005_advisor — status
 
-- **M4.1 (done, headless):** `ball_buddy/domain/waiver.py` ranks waiver candidates by ΔP(win) via `domain/engine.py` reuse (baseline + per-candidate exact best-drop counterfactuals, deterministic `mc=False` cat_delta, rationale, FAAB over-budget flag, loud `ValueError` on any unresolved pool name).
-- No wire data: candidates/roster/opponent are pool names bridged upstream (e.g. via `domain/naming.py`); `PlayerPool` is fixture- or manual-constructed.
-- No Qt, no new deps; tests in `tests/domain/test_waiver.py` (trials=50, pinned seed).
-- Not yet surfaced in the UI; board wiring is a later milestone.
+Advisor logic over 004_engine (SPEC §6). M4.1 done (waiver domain); M4.2 (waiver view UI) remaining in dev.md.
+
+## Files
+
+- `ball_buddy/domain/waiver.py` — headless waiver ranking:
+  - `rank_candidates(...)` — baseline P computed once; per candidate, counterfactual over the FULL drop space (every current roster player, strict `>` first-tie), best drop = max ΔP; reuses `domain/engine.py` (no projection re-implementation).
+  - Output per candidate: `delta_p`, `best_drop`, per-category gap deltas (deterministic gap mode), `faab_cost`, `over_budget` flag (vs. remaining budget param), direction-aware rationale (TO improvements read positive, `was` stays raw).
+  - Unmatched candidate names → loud `ValueError` (never silent zeros).
+  - Deterministic with seed; pure python, no Qt.
+
+## Next (dev.md)
+
+- M4.2: Waivers page (manual candidate entry pre-draft, ranked table, FAAB budget + bid input).
+
+Plans: dev.md. History: git log; done.md.
