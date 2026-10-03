@@ -34,6 +34,7 @@ from ball_buddy.domain.naming import bridge
 from ball_buddy.domain.players import PlayerPool
 from ball_buddy.io.state import StateError
 from ball_buddy.services.sync import SyncService
+from ball_buddy.ui.views.board import DraftBoard
 
 COLUMNS = ("Team", "Player", "Cost round", "Opt out", "Status")
 
@@ -46,6 +47,7 @@ class DraftView(QWidget):
         self.service = service
         self.keepers_path = service.data_dir / keepers_mod.KEEPERS_FILE
         self.teams: list[str] = []
+        self.board: DraftBoard | None = None
         self._rows: list[dict] = []
         self._dropped_msg: str = ""
 
@@ -103,6 +105,10 @@ class DraftView(QWidget):
         button_row.addWidget(self.save_button, 0, Qt.AlignmentFlag.AlignRight)
         inner.addLayout(button_row)
 
+        self.board_title = QLabel("Draft board")
+        self.board_title.setObjectName("title")
+        root.addWidget(self.board_title)
+
         self.refresh()
 
     # -- data loading ----------------------------------------------------------
@@ -119,6 +125,7 @@ class DraftView(QWidget):
                 self.alert_banner, "banner-alert", "Sync the league first (League → Sync now)"
             )
             self._set_banner(self.status_banner, "banner", "")
+            self._rebuild_board([])
             return
 
         self._set_banner(self.alert_banner, "banner-alert", "")
@@ -148,6 +155,21 @@ class DraftView(QWidget):
         self.save_button.setEnabled(True)
         self._set_banner(self.status_banner, "banner", "")
         self.update_statuses()
+        self._rebuild_board(saved)
+
+    def _rebuild_board(self, saved: list[KeeperEntry]) -> None:
+        """Re-create the draft board when teams or saved keepers changed."""
+        key = (tuple(self.teams), tuple(saved))
+        if self.board is not None and getattr(self, "_board_key", None) == key:
+            self.board.refresh()
+            return
+        if self.board is not None:
+            self.board.setParent(None)
+        self.board = DraftBoard(self.service, list(saved))
+        self._board_key = key
+        layout = self.layout()  # type: ignore[union-attr]
+        if layout is not None:
+            layout.addWidget(self.board)
 
     def _add_row(self, row: int, team: str, pool: PlayerPool) -> None:
         team_item = QTableWidgetItem(team)
