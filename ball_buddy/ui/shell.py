@@ -75,7 +75,7 @@ class MainWindow(QMainWindow):
             if label == "League":
                 stack.addWidget(LeagueView(self.sync_service))
             elif label == "Draft":
-                stack.addWidget(DraftView())
+                stack.addWidget(DraftView(self.sync_service))
             else:
                 stack.addWidget(PlaceholderView(label.lower() + " — coming soon"))
         stack.setCurrentIndex(NAV_ITEMS.index("Draft"))

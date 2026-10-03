@@ -1,4 +1,4 @@
-# State — ball.buddy: M1–M7 sequential implementation
+# State — ball.buddy: M2 draft board (sliced), M3–M7 to follow
 (Rewrite this whole file at every checkpoint. Never append. If a fact
 no longer matters, delete it — git history keeps the trail.)
 
@@ -6,30 +6,30 @@ no longer matters, delete it — git history keeps the trail.)
 does not count.
 
 ## Status
-- Position: M1 of M1–M7 in flight (user order: "all remaining phases sequentially, subagent chain per phase: planner→worker→reviewer→worker").
-- Exact next step: launch M1 chain (002_yahoo + 003_league + 001_data: OAuth login, sync league/teams/draft order/schedule, JSON snapshot; Hashtag pool import). On PASS: phase_complete, docs, then immediately M2 chain (draft board — user's #1 priority), M3, M4, M5, M6, M7 without pausing.
-- In flight: none (M0 committed clean; scaffold docs landed in M0 commit + routing).
-- Rules in force (user's own words): draft tracker top priority / first feature; tactile-cream-ui skill for ALL UI decisions; implement all remaining phases sequentially, one chain each.
+- Position: M1 committed (002_yahoo M0-style phase commit "002_yahoo M1"). Next: M2 draft board, SLICED (user directive): 2.1 keeper entry + data model, 2.2 snake board view (keeper-aware forfeited picks + pick entry), 2.3 pool value recommender. One subagent chain per slice (planner→worker→reviewer→worker; small slices may drop one worker). Then M3, M4, M5, M6, M7 — all sliced if large. Docs for 001/002/003 written (land in next commit); ROUTING updated.
+- Exact next step: launch M2.1 chain (keeper entry: bulk entry of 24 keepers with team + cost round, per-keeper opt-out, persistence to data/ dir, UI in Draft view per tactile-cream-ui; planner→worker→reviewer→worker).
+- In flight: none. M1 verify baseline: 104 passed/1 skipped, ruff clean, offscreen smoke OK, exe rebuilt post-fix.
+- Rules in force (user's own words): draft tracker top priority; tactile-cream-ui for ALL UI; **break large phases into smaller slices to avoid subagent ctx blowups** (new, this turn); implement all remaining phases sequentially without pausing.
 
 ## Verification
-- Baseline (post-M0 commit): pytest 5 passed, ruff clean, offscreen app constructs, PyInstaller exe builds at dist/ball.buddy/ball.buddy.exe.
-- Failing / not-yet: M1–M7 not started. Open league items: 4-4 tie-break (user to check w/ comm; engine configurable, default Yahoo), trade deadline + tx cutoff (read from Yahoo at M1).
-- Now passing and what fixed it: M0 nits (focus indicator, sidebar order) fixed + exe rebuilt post-fix.
+- Baseline (M1 commit): pytest 104 passed + 1 skipped; ruff clean; offscreen smoke needs QApplication([]) BEFORE MainWindow (else rc=127 crash with lost output — pytest fixture does this for you); exe at dist/ball.buddy/ball.buddy.exe (rebuilt M1).
+- Failing / not-yet: live Yahoo login still user-performed (AGENTS.md "M1 live check" steps; step 1 = League → Settings dialog, no hand-written settings.json). Open league items: 4-4 tie-break (user→comm), trade deadline + tx cutoff.
+- Now passing and what fixed it: M1 post-review fixes (data/ gitignore, SettingsDialog, manual team-order mapping, AGENTS live-check).
 
 ## Findings
-- M0 stack on this machine: Python 3.14.7, PySide6 6.11.2, pytest 9.1.1, ruff 0.16.10, pyinstaller 6.22.3; repo-local .venv, no editable install. told yes.
-- Qt QSS: no box-shadow/true gradients; approximated (flat fill + 1px top border); dark theme deferred M7. told yes.
-- info.md (AutoDraft brief, 353 lines) in repo at ball.buddy/info.md = salvage context for 001_data/006_board. told yes.
-- Salvage source: N:/LLM/projects/autodraft (untouched) — import-v4 pool, state.py atomic writes, 003_board, ValueGapScorer.
-- League facts (user-confirmed, pre-draft 2026): roster 14 = 10 active + 3 BN + 1 conditional IR (no IR draft round; injured-while-owned only). 24 keepers pre-draft (cost = prev round + comm penalty; in-app entry + per-keeper opt-out). FAAB $100 ONLY add path; 3 adds/wk, unlimited drops, 3-day hold. Lineups daily, per-player game-start deadline. Playoffs top 4, 2 byes, single elim, end 2-3 wks before NBA season. told yes.
-- Phase order: M1 yahoo+league+data, M2 draft board (first feature), M3 matchup, M4 waivers, M5 lineups, M6 trades, M7 packaging. told yes.
-- Spec: agents/SPEC.md; build order agents/ROADMAP.md; spec §7 = pointer. told yes.
-- yffapi is the main Yahoo API (OAuth device flow, no browser window needed for headless-ish use); pyffl as fallback — M1 planner should verify real packages' APIs before designing adapter.
+- Yahoo wrapper reality: **yffapi/pyffl do not exist on PyPI** (SPEC was wrong); real one is **yfpy 17.0.0** (3-legged OAuth, opens browser; deferred import in client.py; LoginRequiredError when no consumer key). SPEC §3 should be corrected when convenient. told yes.
+- data/ (gitignored): settings.json (tokens!), players.csv, aliases.json, snapshot.json — at repo root, not data_tmp junk (leftover data_tmp_check/ gitignored, blocked deletion).
+- Subagent abort pattern: M1 worker aborted mid-run at "step 2" (not manual; possibly ctx/timeout) but ~90% of work survived on disk. Recovery = inspect (pytest/ruff/status) then resume with fix-chain. User: if it happens again, inspect then resume. told yes.
+- Shell quirk on this box: `timeout`/`which` missing; some python runs return rc=127 with lost stdout (buffering) when the process dies — write smoke to a .py file + QApplication first. told no (internal).
+- M0 stack: Python 3.14.7, PySide6 6.11.2, pytest 9.1.1, ruff 0.16.10, pyinstaller 6.22.3; repo-local .venv. told yes.
+- League facts (user-confirmed): roster 14 = 10 active + 3 BN + 1 conditional IR (no IR draft round). 24 keepers pre-draft, cost = prev round + comm penalty (in-app entry + opt-out). FAAB $100 ONLY add path; 3 adds/wk, unlimited drops, 3-day hold. Lineups daily, per-player game-start deadline. Playoffs top 4, 2 byes, single elim, end 2-3 wks before NBA season. told yes.
+- Phase order: M2 draft board (sliced), M3 matchup, M4 waivers, M5 lineups, M6 trades, M7 packaging. told yes.
 
 ## U-turns
-- draft board: M6 → M2 (first feature). told yes.
-- Roadmap: SPEC §7 table → single source agents/ROADMAP.md. told yes.
+- M1 slice strategy: single chain → aborted; recovered via fix-chain. Going forward: slice large phases per user. told yes.
+- SPEC Yahoo lib: yffapi/pyffl → yfpy 17.0.0 (verified on PyPI). told yes.
 
 ## Dead ends
-- edit() non-ASCII in oldText (≥ § – —): round-trip failures; use ASCII-only anchors or copy from fresh read. told no (internal).
+- edit() non-ASCII in oldText (≥ § – —): round-trip failures; ASCII-only anchors or copy from fresh read. told no (internal).
 - pyinstaller into non-empty dist/ needs -y. told no (internal, minor).
+- MainWindow() without QApplication([]) first: hard crash rc=127, output lost. told no (internal).
