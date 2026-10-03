@@ -8,3 +8,11 @@
 - Persisted smoke: `agents/004_engine/_smoke.py` (cat wins 7-2, winner A, reproducible=True).
 - Verify: 170 passed / 1 skipped, ruff clean.
 - Deferred to M3.2: `matchup_tie_break` wiring into `data/settings.json`; commissioner confirmation of 4-4 rule (SPEC §1.1 open item).
+
+## 2026-10-03 — M3.2 — Matchup view (slice 2/2 — M3 complete): team/week pickers, headline P(win) (gap mode instant, seeded MC recompute), 9-cat gap bars, per-cat W/L/tie, player marginal table, tie_break wired to settings (yahoo_default | h2h with snapshot standings). 178 tests green, ruff clean, exe rebuilt.
+
+- `ui/views/matchup.py` in the shell: team/week pickers, P(win) (gap mode default; MC button w/ visible seed), 9-cat gap bars, per-cat W/L/tie, marginal table; pre-draft full-roster projection with 'no lineups yet' notice; theme tokens only.
+- Reviewer-caught BLOCKING: `_recompute` never passed tie-break evidence → true cat-ties always "Push" even in h2h mode. Fix: `_standings()` builds `{team: (W, L)}` from snapshot standings and passes `h2h=` to the engine; +regression test (identical rosters 9-9: yahoo_default=Push, h2h with Blue 5-0 = Blue wins).
+- Post-review fixes: duplicate keepers.resolve pass merged; week selector no longer silently falls back to 1 (first numeric entry).
+- Exe rebuilt (app module changed). Verify: 178 passed / 1 skipped, ruff clean, offscreen smoke OK (render, standings-backed h2h, settings persist, MC run).
+- Open: real-week hand-check against synced data/ (no synced data in workspace); 4-4 rule commissioner confirmation (SPEC §1.1).
