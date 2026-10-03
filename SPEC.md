@@ -24,9 +24,35 @@ inherited unchanged from the AutoDraft domain brief
 Win condition per week: win ≥ 5 of 9 categories vs. the opponent (ties count
 per-category per Yahoo rules).
 
+### 1.1 Confirmed league settings (interviewed with user, pre-draft 2026)
+
+| Setting | Value |
+|---|---|
+| Platform / format | Yahoo, 9-category H2H, weekly, 12 teams |
+| Draft | Snake, 13 rounds, 60s pick timer, autopick on miss (Yahoo defaults, unconfirmed but standard) |
+| Keepers | 2 per team. Cost = previous draft round + variable penalty (commissioner-assigned, not derivable). Finalized before the draft; **manual entry in-app for all 24 keepers** (player + team + cost round). Owners may **opt out of one or both keepers** — the app must support marking a keeper opted-out (player returns to the pool, the cost-round pick returns to that team). |
+| Roster | 14 total: 10 active (PG, SG, G, SF, PF, F, C, 3 UTL) + 3 BN + 1 IR. IR is a **conditional 14th slot with no draft round**: empty for everyone at season start, usable only once an owned player becomes injured (Yahoo "injured while on roster" eligibility). Draft pool math: 12 x 13 drafted/FA slots = 156, minus keepers. |
+| Lineups | Daily. Deadline is per-player: a player can be moved until his game starts. |
+| Adds/drops | 3 adds per week, unlimited drops. **FAAB claims are the only way to add** (no free adds even at top waiver priority). Every add event counts against the 3, including re-adding the same player. Dropped players are on league hold (Yahoo default ≈ 3 days) before anyone can claim. |
+| Waivers | FAAB, $100 budget, nightly processing, blind bids. |
+| Trades | Unlimited, commissioner approval per Yahoo default (vetos rare). Trade deadline exists; date not yet set this year — read from Yahoo at sync, manual-entry fallback. |
+| Standings | Regular season: total category wins. |
+| Playoffs | Top 4 advance, top 2 get a first-round bye, single elimination, same 9-cat H2H rules. The entire fantasy season (incl. playoffs) ends 2–3 weeks **before** the NBA regular season ends. |
+| Scoring | Pure 9-cat, unweighted, no special rules (no double-count days, no POTW bonuses). |
+| IR rule | Custom per league: IR-eligible only if the player was added to the owner's roster *before* becoming injured (no stashing season-injured players). |
+| Commissioner overrides | None. |
+
+**Open items (flagged, not blocking):**
+- **Matchup-level tie-break**: per-category ties are handled Yahoo-default (tie counts for *both* teams). What happens when a *matchup* ends 4-4 is disputed in this league (Yahoo default: more total category wins that season; alternate theory: better regular-season head-to-head record — was a source of controversy last year). **Confirm with commissioner.** Engine must make this a configurable setting, defaulting to Yahoo default.
+- Transaction cutoff time (~2-3 AM user-local; read from Yahoo league settings at M1 sync).
+
+### 1.2 Priority (user-stated, pre-draft)
+
+The **draft tracker/board is the first feature built** — after whatever scaffolding and league data sync are necessary to run it. The weekly-season features (matchup view, advisors) come after.
+
 ## 2. Non-goals (for v1; candidates for later phases)
 
-- Live draft-day assistant (salvageable, but a *later* phase — §8).
+- Live draft-day assistant (now the **first** feature, M2, per §1.2).
 - Multi-league management (one league, one user, local).
 - Cloud sync, accounts, telemetry — the app is offline-capable and local-only.
 - ML models. Statistical projection + Monte-Carlo only.
@@ -65,7 +91,7 @@ engine, pool, board)  →  I/O adapters (yahoo client, pool CSV, state JSON)
 | `003_league` | League/roster model: teams, roster slots/eligibility, lineups, schedule, standings; Yahoo state → typed domain (superset of salvaged AutoDraft `002_league` — that one is draft-time oriented). |
 | `004_engine` | Winrate engine: category projection, variance, matchup win-prob, per-category gap analysis (§5). Salvaged z-score/needs math as the projection substrate. |
 | `005_advisor` | Decision levers: waiver advisor (FA rankings w/ winrate impact), lineup optimizer (daily start/sit), trade analyzer (later phase). |
-| `006_board` | (Later) Draft-day board: snake/keeper pick tracking + recommender (salvaged `003_board` + `004_engine` ValueGapScorer), gated behind a "draft mode" in the UI. |
+| `006_board` | Draft-day board — **first feature (M2)**: snake/keeper pick tracking + recommender (salvaged `003_board` + `004_engine` ValueGapScorer), bulk keeper entry (all 24, with per-keeper opt-out), pool-based value rankings. Gated behind a "draft mode" in the UI. |
 
 ## 5. Winrate engine (the core)
 
@@ -126,15 +152,15 @@ category-by-category before/after, and a fairness flag. No MVP commitment.
 | Phase | Deliverable | Exit criteria |
 |---|---|---|
 | **M0** | Scaffold: `/init-docs` repo per doc-structure, `pyproject.toml`, PySide6 skeleton (main window + nav), PyInstaller onedir build producing a runnable exe, pytest/ruff green on the shell | exe runs; local verify commands documented in AGENTS.md |
-| **M1** | 002_yahoo + 003_league: OAuth login, sync league/rosters/standings/schedule/waiver wire, JSON snapshot persisted; UI shows league + my roster | login→sync works against the real league; stale/offline fallback shows last snapshot |
-| **M2** | 001_data salvage + 004_engine: pool import in-app, matchup view (headline P(win), 9-cat gap bars, player marginal table) | the matchup screen is correct by hand-check on one real week |
-| **M3** | 005_advisor waiver ranking (§6.1) | ranked list with ΔP(win) per candidate |
-| **M4** | 005_advisor lineup optimizer (§6.2), per-day | daily recommendations + explanations |
-| **M5** | Trade analyzer (§6.3) | — |
-| **M6** | 006_board draft mode (salvage draft-day stack) | — |
+| **M1** | 002_yahoo + 003_league + 001_data: OAuth login, sync league/teams/draft order/schedule, JSON snapshot persisted; pool import in-app (Hashtag salvage) | login→sync works against the real league; pool loaded with matched names; stale/offline fallback shows last snapshot |
+| **M2** | **006_board draft mode (first feature, §1.2)**: snake draft board with keeper-aware forfeited picks, bulk keeper entry (24 keepers, per-keeper opt-out), pick-by-pick live tracking, pool-based value recommender (salvaged `003_board` + ValueGapScorer) | board correctly shows the 12-team snake with all forfeited keeper picks; keeper entry round-trips; recommender rankings sane on the real pool |
+| **M3** | 004_engine: matchup view (headline P(win), 9-cat gap bars, player marginal table) | the matchup screen is correct by hand-check on one real week |
+| **M4** | 005_advisor waiver ranking (§6.1) | ranked list with ΔP(win) per candidate |
+| **M5** | 005_advisor lineup optimizer (§6.2), per-day | daily recommendations + explanations |
+| **M6** | Trade analyzer (§6.3) | — |
 | **M7** | Packaging polish: installer-grade exe folder, icon, settings reset, error UX | hand to a friend; it works |
 
-M1–M4 = "the app I open every week." M5–M7 are explicitly secondary.
+M2 is the first thing the user opens (this draft). M3–M5 = "the app I open every week." M6–M7 are explicitly secondary.
 
 ## 8. Salvage from AutoDraft (`N:\LLM\projects\autodraft`, untouched)
 
@@ -147,7 +173,7 @@ Copied **verbatim as a starting point** (plus their tests, re-parented):
 | `autodraft/league.py`, `autodraft/config.py`, `tests/test_league.py` | 003_league base | draft-time model; 003_league extends it with lineups/schedule/standings |
 | `autodraft/state.py` (+tests) | 000_app or 003_league | atomic versioned JSON persistence pattern |
 | `autodraft/engine/scoring.py` z-pool model + TO-sign handling, `autodraft/needs.py` | 004_engine substrate | the ValueGapScorer itself moves with 006_board (draft mode) |
-| `autodraft/board.py` (+tests) | 006_board | draft-day only, later phase |
+| `autodraft/board.py` (+tests) | 006_board | draft-day — first feature (M2) |
 
 **Discarded:** the FastAPI backend, the entire `static/` frontend, the
 `session.json` user-team concept (replaced by auth), the README quick-tour
@@ -180,3 +206,5 @@ Copied **verbatim as a starting point** (plus their tests, re-parented):
    from the real league (003_league reads them from Yahoo anyway).
 3. Box-score history depth available via `yffapi` for variance calibration —
    probe in M1; if thin, fall back to pool-relative-variance priors.
+4. Matchup-level tie-break rule (Yahoo default vs. season head-to-head record) — confirm with commissioner (§1.1 open items); make configurable in 004_engine, default Yahoo.
+5. Trade deadline date and exact transaction cutoff time — read from Yahoo league settings at M1 sync.
