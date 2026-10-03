@@ -131,6 +131,52 @@ QLabel#title {{
 QLabel#secondary {{
     color: {TEXT_SECONDARY};
 }}
+
+/* Ink-filled status banners (loud, per R3: unmatched reports are red-on-cream,
+   i.e. text on the ink fill using TEXT_ON_INK) */
+QLabel#banner {{
+    background-color: {SUNKEN};
+    border: {BORDER};
+    border-radius: {RADIUS_CONTROL};
+    padding: 4px 12px;
+}}
+QLabel#banner-alert {{
+    background-color: {INK_FILL};
+    border: {BORDER};
+    border-radius: {RADIUS_CONTROL};
+    padding: 4px 12px;
+    color: {TEXT_ON_INK};
+}}
+
+/* Tables (League view panes, import dialog report): surface fill, 2px hard
+   outline, dividers for grid, sunken header */
+QTableWidget {{
+    background-color: {SURFACE};
+    alternate-background-color: {CANVAS};
+    border: {BORDER};
+    border-radius: {RADIUS_CONTAINER};
+    gridline-color: {DIVIDER};
+    selection-background-color: {SUNKEN};
+    selection-color: {TEXT};
+}}
+QTableWidget::item {{
+    padding: 1px 6px;
+    border: none;
+}}
+QHeaderView::section {{
+    background-color: {SUNKEN};
+    color: {TEXT};
+    border: none;
+    border-right: 1px solid {DIVIDER};
+    border-bottom: {BORDER};
+    padding: 2px 6px;
+}}
+QTableCornerButton::section {{
+    background-color: {SUNKEN};
+    border: none;
+    border-bottom: {BORDER};
+    border-right: 1px solid {DIVIDER};
+}}
 """
 
 

@@ -8,6 +8,8 @@ dependencies = [
     # Fallbacks (first versions with stable 3.14 support) if wheels fail here:
     #   PySide6 6.10.3, pytest 9.0.3, pyinstaller 6.19.0
     "PySide6==6.11.2",
+    # yfpy: the real Yahoo Fantasy API wrapper (yffapi/pyffl do not exist on PyPI).
+    "yfpy==17.0.0",
 ]
 
 [dependency-groups]
@@ -30,7 +32,7 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py314"
-exclude = ["dist", "build", ".venv"]
+exclude = ["dist", "build", ".venv", ".salvage"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]

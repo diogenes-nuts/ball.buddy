@@ -2,6 +2,10 @@ venv/
 .venv/
 dist/
 build/
+.salvage/
+data/
+%temp%pipcheck/
+data_tmp_check/
 node_modules/
 __pycache__/
 .pytest_cache/

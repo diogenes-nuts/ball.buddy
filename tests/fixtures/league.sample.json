@@ -1,0 +1,68 @@
+{
+  "teams": [
+    "Team 1",
+    "Team 2",
+    "Team 3",
+    "Team 4",
+    "Team 5",
+    "Team 6",
+    "Team 7",
+    "Team 8",
+    "Team 9",
+    "Team 10",
+    "Team 11",
+    "Team 12"
+  ],
+  "start_order": [
+    "Team 1",
+    "Team 2",
+    "Team 3",
+    "Team 4",
+    "Team 5",
+    "Team 6",
+    "Team 7",
+    "Team 8",
+    "Team 9",
+    "Team 10",
+    "Team 11",
+    "Team 12"
+  ],
+  "rounds": 13,
+  "games_per_week": 3.5,
+  "roster": {
+    "slots": [
+      { "slot": "PG", "count": 1, "eligible": ["PG"] },
+      { "slot": "SG", "count": 1, "eligible": ["SG"] },
+      { "slot": "G", "count": 1, "eligible": ["PG", "SG"] },
+      { "slot": "SF", "count": 1, "eligible": ["SF"] },
+      { "slot": "PF", "count": 1, "eligible": ["PF"] },
+      { "slot": "F", "count": 1, "eligible": ["SF", "PF"] },
+      { "slot": "C", "count": 1, "eligible": ["C"] },
+      { "slot": "UTIL", "count": 3, "eligible": ["PG", "SG", "SF", "PF", "C"] },
+      { "slot": "BN", "count": 3, "eligible": ["PG", "SG", "SF", "PF", "C"] }
+    ]
+  },
+  "categories": [
+    { "key": "fg_pct", "label": "FG%", "direction": "higher" },
+    { "key": "ft_pct", "label": "FT%", "direction": "higher" },
+    { "key": "three_pg", "label": "3PTM", "direction": "higher" },
+    { "key": "pts_pg", "label": "PTS", "direction": "higher" },
+    { "key": "reb_pg", "label": "REB", "direction": "higher" },
+    { "key": "ast_pg", "label": "AST", "direction": "higher" },
+    { "key": "stl_pg", "label": "STL", "direction": "higher" },
+    { "key": "blk_pg", "label": "BLK", "direction": "higher" },
+    { "key": "to_pg", "label": "TO", "direction": "lower" }
+  ],
+  "weights": {
+    "fg_pct": 1.0,
+    "ft_pct": 1.0,
+    "three_pg": 1.0,
+    "pts_pg": 1.0,
+    "reb_pg": 1.0,
+    "ast_pg": 1.0,
+    "stl_pg": 1.0,
+    "blk_pg": 1.0,
+    "to_pg": 1.0
+  },
+  "keepers": []
+}

@@ -1,0 +1,53 @@
+{
+  "league_id": "1234",
+  "user": {"guid": "987654321"},
+  "league": [
+    {"league_id": "1234", "league_key": "nba.fake.1234", "name": "Fake League"},
+    {"league_id": "9999", "league_key": "nba.fake.9999", "name": "Other League"}
+  ],
+  "settings": {
+    "draft_type": "standard",
+    "draft_pick_time": "2026-06-24T19:30:00Z",
+    "draft_time": "2026-06-24T19:30:00Z",
+    "waiver_type": "highest_bidder"
+  },
+  "teams": [
+    {
+      "team_id": "100",
+      "team_key": "nba.fake.t100",
+      "name": "Red",
+      "manager": {"nickname": "mgr_red", "guid": "g1"},
+      "draft_position": 1,
+      "players": [
+        {"player_key": "pid_jokic", "name": "Nikola Jokic", "positions": ["C"], "status": "ACTIVE"},
+        {"player_key": "pid_ghost", "name": "Ghost Player", "positions": ["PG"], "status": "ACTIVE"}
+      ]
+    },
+    {
+      "team_id": "200",
+      "team_key": "nba.fake.t200",
+      "name": "Blue",
+      "manager": {"nickname": "mgr_blue", "guid": "g2"},
+      "draft_position": 2,
+      "players": [
+        {"player_key": "pid_oneal", "name": "Shaquille O'Neal", "positions": ["C"], "status": "ACTIVE"},
+        {"player_key": "pid_jokic2", "name": "Jokic", "positions": ["C"], "status": "IR"}
+      ]
+    }
+  ],
+  "draft_results": [],
+  "standings": {"teams": []},
+  "matchups": [
+    {
+      "week": 1,
+      "status": "SCHEDULED",
+      "teams": [{"team": {"team_id": "100", "team_key": "nba.fake.t100"}}, {"team": {"team_id": "200", "team_key": "nba.fake.t200"}}]
+    },
+    {
+      "week": 1,
+      "status": "",
+      "teams": [{"team": {"team_id": "200", "team_key": "nba.fake.t200"}}, {"team": {"team_id": "100", "team_key": "nba.fake.t100"}}]
+    },
+    {"week": 2, "status": "BYE", "teams": [{"team": {"team_id": "100", "team_key": "nba.fake.t100"}}]}
+  ]
+}

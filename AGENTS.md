@@ -8,10 +8,10 @@ _Build, test, and run commands + environment notes. Brief; no function/structure
 
 ```
 python -m venv .venv
-.venv\Scripts\pip install PySide6 pytest ruff pyinstaller
+.venv\Scripts\pip install PySide6 yfpy pytest ruff pyinstaller
 ```
 
-Pins per `pyproject.toml` (PySide6 6.11.2, pytest 9.1.1, ruff 0.16.10, pyinstaller 6.22.3 — newest Py-3.14-resolvable releases, exact pins of those; no editable install).
+Pins per `pyproject.toml` (PySide6 6.11.2, yfpy 17.0.0, pytest 9.1.1, ruff 0.16.10, pyinstaller 6.22.3 — newest Py-3.14-resolvable releases, exact pins of those; no editable install).
 
 ### Run
 
@@ -44,3 +44,15 @@ Run the result with `.\dist\ball.buddy\ball.buddy.exe` (the `build\` dir is PyIn
 - Python 3.14.7 at `C:\Users\User\AppData\Local\Python\pythoncore-3.14-64` (system, no global installs — always use `.venv`).
 - Windows: run the app via `python -m ball_buddy.main`; the venv must be created inside the repo (`.venv`).
 - UI theme: tactile-cream-ui, light only in M0; Qt can't do box-shadow/gradients — control gradients approximated with flat fill + 1px light top border (documented in `ball_buddy/ui/theme.py`).
+
+### Data
+
+`data/` at the repo root is gitignored local state: `settings.json` (consumer key/secret, league id, manual draft order), `yahoo_tokens.json` (OAuth token — never commit), `players.csv` (imported pool), `aliases.json`, `snapshot.json`. Created on first save; safe to delete.
+
+### M1 live check (manual, user runs)
+
+1. Start app → League → "Settings": enter consumer key/secret (from a Yahoo developer app) + league id (the number in the Yahoo league URL). Then "Sign in to Yahoo": complete the browser OAuth, then press **Sync now** (the token only persists after a successful sync).
+2. First sync: 12 real teams + managers appear; settings (draft time/type) populated. Pre-draft, the live order/schedule may be empty → use the up/down buttons + "Save order" for the manual start order; "No schedule yet" placeholder renders.
+3. League → "Import pool" → pick a saved Hashtag import-v4 HTML (e.g. `N:\LLM\projects\autodraft\data\hashtag_import.html`): matched/ambiguous/unmatched tables appear; add ambiguous players to `data/aliases.json`.
+4. Offline fallback: delete `data/yahoo_tokens.json` (or kill network) → restart → League shows "Offline — showing last snapshot (synced <age>)" banner, no crash.
+5. Do this **before** any exit/commit so the auto phase-commit doesn't sweep `data/` (it is gitignored, but verify tokens never land in git).

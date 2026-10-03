@@ -1,5 +1,7 @@
 """Main window: fixed left sidebar nav + QStackedWidget pages."""
 
+from pathlib import Path
+
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -11,7 +13,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ball_buddy.services.sync import SyncService
 from ball_buddy.ui.views.draft import DraftView
+from ball_buddy.ui.views.league import LeagueView
 from ball_buddy.ui.views.placeholders import PlaceholderView
 
 # Sentence-case labels, no emoji; Draft selected by default.
@@ -62,9 +66,15 @@ class MainWindow(QMainWindow):
         return sidebar
 
     def _build_stack(self) -> QStackedWidget:
+        # data/ at the repo root (gitignored local state: settings, tokens,
+        # players.csv, aliases.json, snapshot.json).
+        self.data_dir = Path(__file__).resolve().parents[2] / "data"
+        self.sync_service = SyncService(self.data_dir)
         stack = QStackedWidget()
         for label in NAV_ITEMS:
-            if label == "Draft":
+            if label == "League":
+                stack.addWidget(LeagueView(self.sync_service))
+            elif label == "Draft":
                 stack.addWidget(DraftView())
             else:
                 stack.addWidget(PlaceholderView(label.lower() + " — coming soon"))
