@@ -14,3 +14,10 @@
 - `ui/views/board.py`: 13x12 grid; forfeits "Keeper: <name>"; current pick = first unentered open pick (forfeits consume overall numbers — R2 order 2 = overall 3); undo-last; click/tab navigation.
 - Reviewer caught CRITICAL: even-round keeper cells rendered "Keeper: ?" (`_slot_of` used start-order slot instead of snake order). Fix: `_order_of` (odd rounds index+1, even rounds len-index), `_keeper_cells` keyed by snake order; +2 tests (even-round forfeit, opted-out even-round stays open). Also fixed round-13 cells unclickable (bounds check used 12 not grid rowCount 13).
 - Verify: 147 passed / 1 skipped, ruff clean, offscreen smoke (even-round keeper cell, round-13 click) OK.
+
+## 2026-10-03 — M2.3 — Pool value recommender (slice 3/3 — M2 complete): per-pick top-N suggestions from real pool rank/value/pos columns, excludes drafted picks + active keepers (opted-out keepers stay draftable), unranked rows show dash. 162 tests green, ruff clean; all ROADMAP M2 exit criteria verified.
+
+- `domain/recommend.py`: top-N per current pick from pool `rank`/`value`/`pos`/`name` only (no invented stats); exclusion = drafted picks + non-opted-out keepers, alias-bridged both sides.
+- `board.py` suggest panel: updates per current pick; unranked rows `rank=None` → "—".
+- Post-review fixes (all 3 nits pinned with tests): opted-out keepers stay suggestable; unranked rank None (was max+1 = invented "200"); 12-team shape covered by domain test.
+- Verify: 162 passed / 1 skipped, ruff clean, offscreen smoke (opted-out keeper, unranked dash) OK. **ROADMAP M2 exit criteria all verified.**

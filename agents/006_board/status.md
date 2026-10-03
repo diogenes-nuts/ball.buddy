@@ -1,6 +1,6 @@
 # 006_board — status
 
-Draft-day board (first feature per SPEC §1.2). M2.1 + M2.2 done; M2.3 (value recommender) remaining in dev.md.
+Draft-day board (first feature per SPEC §1.2). **M2 complete** (M2.1 keepers, M2.2 snake board, M2.3 recommender).
 
 ## Files
 
@@ -11,8 +11,9 @@ Draft-day board (first feature per SPEC §1.2). M2.1 + M2.2 done; M2.3 (value re
 - `ball_buddy/ui/views/board.py` — snake board: 13 rounds x 12 picks grid, snake order (`_order_of` mirrors `league.snake_order`; even rounds reversed), keeper forfeits shown as "Keeper: <name>" (opted-out keepers leave the pick open), current pick highlighted (first unentered open pick; forfeits consume overall numbers), pick entry with pool lookup + quick commit, undo-last, tab/click navigation.
 - `tests/ui/test_board.py` — snake math, forfeited computation (odd + even rounds, opted-out), pick persistence + undo, offscreen UI tests.
 
-## Next (dev.md)
+## Recommender (M2.3)
 
-- M2.3: pool-based value recommender (salvage ValueGapScorer if applicable; position-aware pool ranking fallback). Completes ROADMAP M2 exit criteria.
+- `ball_buddy/domain/recommend.py` — per-pick top-N from real pool columns (`rank`, `value`, `pos`, `name`); excludes drafted picks + active keepers; **opted-out keepers stay draftable/suggestable** (their pick isn't forfeited); unranked rows carry `rank=None` → UI "—" (no invented numbers).
+- Suggestion panel in `board.py` updates per current pick; alias bridging both sides.
 
 Plans: dev.md. History: git log; done.md.

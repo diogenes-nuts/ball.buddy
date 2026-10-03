@@ -8,4 +8,5 @@ One line per component: NNN_name — what it does (one sentence).
 - 001_data — player pool (Hashtag import-v4 salvage) + name bridging with loud unmatched report
 - 002_yahoo — yfpy adapter (OAuth, sync league/teams/draft-order/schedule), atomic JSON snapshot, offline fallback
 - 003_league — local league model: teams, draft order, schedule, manual team order
+- 006_board — draft-day board (M2 complete): keeper entry + snake board + pool value recommender
 - 006_board — draft board: keeper entry (M2.1) + live draft board (M2.2)
