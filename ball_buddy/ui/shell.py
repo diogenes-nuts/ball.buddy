@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from ball_buddy.services.sync import SyncService
 from ball_buddy.ui.views.draft import DraftView
 from ball_buddy.ui.views.league import LeagueView
+from ball_buddy.ui.views.matchup import MatchupView
 from ball_buddy.ui.views.placeholders import PlaceholderView
 
 # Sentence-case labels, no emoji; Draft selected by default.
@@ -76,6 +77,8 @@ class MainWindow(QMainWindow):
                 stack.addWidget(LeagueView(self.sync_service))
             elif label == "Draft":
                 stack.addWidget(DraftView(self.sync_service))
+            elif label == "Matchup":
+                stack.addWidget(MatchupView(self.sync_service))
             else:
                 stack.addWidget(PlaceholderView(label.lower() + " — coming soon"))
         stack.setCurrentIndex(NAV_ITEMS.index("Draft"))
