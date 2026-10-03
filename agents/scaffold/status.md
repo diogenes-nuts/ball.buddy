@@ -6,7 +6,11 @@ Repo scaffold for ball.buddy: Python package `ball_buddy` with a PySide6 desktop
 
 - `pyproject.toml` — pins: PySide6 6.11.2, pytest 9.1.1, ruff 0.16.10, pyinstaller 6.22.3 (newest Py-3.14-resolvable; see AGENTS.md).
 - `ball_buddy/main.py` — entry point (`python -m ball_buddy.main`).
-- `ball_buddy/ui/shell.py` — `MainWindow`: left nav sidebar (League, Matchup, Waivers, Lineups, Trades, Draft) + QStackedWidget; Draft view checked by default.
+- `ball_buddy/ui/shell.py` — `MainWindow`: left nav sidebar (League, Matchup, Waivers, Lineups, Trades, Draft) + QStackedWidget; Draft view checked by default. Window icon from the shared app-mark painter; data dir via `pathing.resolve_data_dir()`.
+- `ball_buddy/pathing.py` — `resolve_data_dir()`: repo-root `data/` in dev, exe-adjacent `data/` when frozen (PyInstaller onedir).
+- `ball_buddy/ui/appicon.py` — `draw_app_icon(size)`: the cream rounded-square + basketball mark (window icon and icon.ico source).
+- `scripts/make_icon.py` — build-time: renders `assets/icon.ico` (256×256 PNG-in-ICO) offscreen; run before `pyinstaller`.
+- `assets/icon.ico` — generated app icon (committed binary, wired into `ball.buddy.spec` + AGENTS.md build command).
 - `ball_buddy/ui/theme.py` — tactile-cream-ui light theme as QSS: warm cream palette, 2px hard outlines, monospace type, dense layout. Qt QSS limitations (no box-shadow/true gradients) approximated with flat fills + 1px light top borders; documented inline. Dark theme not implemented (M7 candidate).
 - `ball_buddy/ui/` views — placeholder views per nav item; Draft is a styled placeholder (M2 replaces with the real board).
 - `tests/` — 5 tests: package imports, offscreen app construction (QT_QPA_PLATFORM=offscreen), widget-order/nav-state assertions.

@@ -1,7 +1,6 @@
 """Main window: fixed left sidebar nav + QStackedWidget pages."""
 
-from pathlib import Path
-
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -13,7 +12,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ball_buddy.pathing import resolve_data_dir
 from ball_buddy.services.sync import SyncService
+from ball_buddy.ui.appicon import draw_app_icon
 from ball_buddy.ui.views.draft import DraftView
 from ball_buddy.ui.views.league import LeagueView
 from ball_buddy.ui.views.lineups import LineupView
@@ -29,6 +30,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("ball.buddy")
+        self.setWindowIcon(QIcon(QPixmap.fromImage(draw_app_icon(64))))
         self.resize(1000, 640)
 
         central = QWidget()
@@ -70,8 +72,8 @@ class MainWindow(QMainWindow):
 
     def _build_stack(self) -> QStackedWidget:
         # data/ at the repo root (gitignored local state: settings, tokens,
-        # players.csv, aliases.json, snapshot.json).
-        self.data_dir = Path(__file__).resolve().parents[2] / "data"
+        # players.csv, aliases.json, snapshot.json); next to the exe when frozen.
+        self.data_dir = resolve_data_dir()
         self.sync_service = SyncService(self.data_dir)
         stack = QStackedWidget()
         for label in NAV_ITEMS:

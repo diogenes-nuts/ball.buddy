@@ -66,7 +66,7 @@ The **draft tracker/board is the first feature built** — after whatever scaffo
 | Runtime | Python 3.14, venv, pytest, ruff, doc-structure repo conventions (same as AutoDraft) | existing toolchain + salvage is Python |
 | UI | **PySide6** (Qt, LGPL), native widgets | self-contained exe, no web stack, no build step, salvage drops in as plain calls. Not PyQt6 (license), not Tkinter (too limited), not Electron/Tauri (web frontend + bundle size/toolchain, and the Python backend would need a sidecar server) |
 | Packaging | **PyInstaller `--onedir`** | one-file is slow to start; a `ball.buddy/` folder with `ball.buddy.exe` is the distribution unit. Charts: Qt-native or pyqtgraph (evaluate at M2, keep matplotlib as fallback) |
-| Yahoo access | **`yffapi` (or `pyffl`) behind an internal adapter** (002_yahoo). Official OAuth2 browser flow for auth; the library handles the unofficial `sport-fantasy` JSON endpoints. One adapter module isolates endpoint breakage | faster + more reliable than bespoke; the library is the maintained layer, the adapter is the seam |
+| Yahoo access | **`yfpy` 17.0.0 behind an internal adapter** (CORRECTION 2026-10: `yffapi`/`pyffl` do not exist on PyPI; the real wrapper in use is yfpy — 3-legged OAuth opens a browser, `LoginRequiredError` for unlogged state) (002_yahoo). Official OAuth2 browser flow for auth; the library handles the unofficial `sport-fantasy` JSON endpoints. One adapter module isolates endpoint breakage | faster + more reliable than bespoke; the library is the maintained layer, the adapter is the seam |
 | Player projections | **Hashtag import-v4 pool** (salvaged importer), *not* Yahoo data | division of labor: **Yahoo = who is where** (rosters, moves, standings, schedule, waiver wire); **pool = how good players are** (per-game projections + z-scores). Bridged by player name (see risk R3) |
 | Persistence | Local JSON (state versioned, atomic writes — salvage the AutoDraft `state.py` pattern) | v1 scale; SQLite only if a later phase needs query power |
 
@@ -87,7 +87,7 @@ engine, pool, board)  →  I/O adapters (yahoo client, pool CSV, state JSON)
 |---|---|
 | `000_app` | App shell: PySide6 bootstrap, window/nav layout, settings (league, pool import, auth), PyInstaller spec + packaging. |
 | `001_data` | Player projection pool: Hashtag import-v4 importer + `players.csv` (salvaged from AutoDraft `001_data`), name-normalized lookup. |
-| `002_yahoo` | Yahoo client: OAuth flow, `yffapi`-backed adapter (league, rosters, box scores, standings, schedule, waiver wire, moves), auth state on disk, manual-entry fallback surface. |
+| `002_yahoo` | Yahoo client: OAuth flow, `yfpy`-backed adapter (league, rosters, box scores, standings, schedule, waiver wire, moves), auth state on disk, manual-entry fallback surface. |
 | `003_league` | League/roster model: teams, roster slots/eligibility, lineups, schedule, standings; Yahoo state → typed domain (superset of salvaged AutoDraft `002_league` — that one is draft-time oriented). |
 | `004_engine` | Winrate engine: category projection, variance, matchup win-prob, per-category gap analysis (§5). Salvaged z-score/needs math as the projection substrate. |
 | `005_advisor` | Decision levers: waiver advisor (FA rankings w/ winrate impact), lineup optimizer (daily start/sit), trade analyzer (later phase). |
@@ -193,7 +193,7 @@ Copied **verbatim as a starting point** (plus their tests, re-parented):
    when the gap bars need real geometry.
 2. Lineup optimizer active-size: confirm the league's active count/lineup rules
    from the real league (003_league reads them from Yahoo anyway).
-3. Box-score history depth available via `yffapi` for variance calibration —
+3. Box-score history depth available via `yfpy` for variance calibration —
    probe in M1; if thin, fall back to pool-relative-variance priors.
 4. Matchup-level tie-break rule (Yahoo default vs. season head-to-head record) — confirm with commissioner (§1.1 open items); make configurable in 004_engine, default Yahoo.
 5. Trade deadline date and exact transaction cutoff time — read from Yahoo league settings at M1 sync.
