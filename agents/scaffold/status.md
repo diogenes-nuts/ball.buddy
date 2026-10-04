@@ -1,6 +1,6 @@
 # scaffold — status
 
-Repo scaffold for ball.buddy: Python package `ball_buddy` with a PySide6 desktop shell, tactile-cream-ui theme, and a runnable PyInstaller onedir build (icon + frozen-aware data dir, M7.1). Feature logic lives in components 001–006.
+Repo scaffold for ball.buddy: Python package `ball_buddy` with a PySide6 desktop shell, tactile-cream-ui theme, and a runnable PyInstaller onedir build (icon, frozen-aware data dir, reset, error UX — M7 complete). Feature logic lives in components 001–006.
 
 ## Files
 
@@ -20,7 +20,6 @@ Repo scaffold for ball.buddy: Python package `ball_buddy` with a PySide6 desktop
 
 ## Not yet
 
-- No services/domain/io layers populated (M1+ per agents/ROADMAP.md).
-- Dark theme, box-shadow fidelity, full font stack — deferred nits from M0 review (M7 polish).
+- Dark theme, box-shadow fidelity, full font stack — deferred nits from M0 review (out of M7 scope by decision).
 
 Plans: dev.md (none yet).
