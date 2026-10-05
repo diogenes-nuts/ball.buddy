@@ -211,6 +211,43 @@ def to_snapshot(
     }
 
 
+def manual_snapshot(teams: list[str], league_id: str = "") -> dict:
+    """A minimal snapshot doc built from a manual team list (offline).
+
+    Used when there is no Yahoo sync yet (no snapshot.json) but the user
+    entered the league's team names in Settings (``manual_teams``). Team ids
+    are synthetic (``manual-01``...) so every consumer of the doc (views,
+    board, engine) works unchanged. ``draft.order`` stays empty so the
+    League view's up/down order editor + ``manual_draft_order`` remain the
+    start-order source. Returns an empty dict when ``teams`` is empty.
+    """
+    names = [name.strip() for name in teams if name.strip()]
+    if not names:
+        return {}
+    return {
+        "user": {"guid": ""},
+        "league": {
+            "key": league_id or "manual",
+            "name": "Manual team list (offline)",
+            "settings": {},
+        },
+        "teams": [
+            {
+                "team_id": f"manual-{index:02d}",
+                "name": name,
+                "manager": "",
+                "manager_guid": "",
+                "players": [],
+            }
+            for index, name in enumerate(names, start=1)
+        ],
+        "draft": {"type": None, "pick_time": None, "time": None, "order": [], "results": []},
+        "schedule": [],
+        "standings": [],
+        "source": "manual",
+    }
+
+
 def save_snapshot(document: dict, path: str | Path) -> None:
     """Write the snapshot doc (adds version + updated_at) atomically."""
     save_json(document, path, SNAPSHOT_VERSION)

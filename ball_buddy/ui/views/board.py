@@ -30,6 +30,7 @@ from ball_buddy.domain.naming import bridge
 from ball_buddy.domain.players import PlayerPool
 from ball_buddy.domain.recommend import recommend
 from ball_buddy.services.sync import SyncService
+from ball_buddy.ui.views import _offline
 
 
 class DraftBoard(QWidget):
@@ -55,6 +56,12 @@ class DraftBoard(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(8)
+
+        self.offline_banner = QLabel("")
+        self.offline_banner.setObjectName("banner")
+        self.offline_banner.setWordWrap(True)
+        self.offline_banner.setVisible(False)
+        root.addWidget(self.offline_banner)
 
         self.alert_banner = QLabel("")
         self.alert_banner.setObjectName("banner-alert")
@@ -135,14 +142,19 @@ class DraftBoard(QWidget):
     # -- data loading ----------------------------------------------------------
 
     def refresh(self) -> None:
-        """Rebuild the grid from the last snapshot + keepers + saved picks."""
-        result = self.service.load_last()
-        if result.snapshot is None:
+        """Rebuild the grid from the effective snapshot + keepers + saved picks.
+
+        The effective snapshot is the last Yahoo snapshot when one exists,
+        else the manual team list from Settings (offline draft-day mode).
+        """
+        snapshot = self.service.effective_snapshot()
+        if snapshot is None:
             self.start_order = []
             self.snake = []
             self.picks = []
             self.grid.setRowCount(0)
             self.grid.setColumnCount(0)
+            _offline.hide_banner(self.offline_banner)
             self._set_alert("Sync the league first (League → Sync now)")
             self.current_label.setText("")
             self.commit_button.setEnabled(False)
@@ -150,9 +162,12 @@ class DraftBoard(QWidget):
             self._render_suggestions()
             return
 
-        self.start_order = picks_mod.start_order_for(
-            result.snapshot, self.service.settings()
-        )
+        if _offline.is_manual(snapshot):
+            _offline.show_banner(self.offline_banner)
+        else:
+            _offline.hide_banner(self.offline_banner)
+
+        self.start_order = picks_mod.start_order_for(snapshot, self.service.settings())
         self._pool = PlayerPool.load(self.service.pool_path)  # may change between refreshes
         self.snake = picks_mod.build_snake(self.start_order, self.keepers)
         try:

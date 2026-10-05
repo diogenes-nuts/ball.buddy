@@ -164,3 +164,34 @@ def test_opted_out_saves_flag(qapp, tmp_path):
     view._save()
     saved = keepers_mod.load(view.keepers_path)
     assert saved[0].opted_out is True
+
+
+# -- offline manual team list -------------------------------------------------
+
+
+def make_manual_view(tmp_path: Path) -> DraftView:
+    service = SyncService(tmp_path, client=YahooClient(FakeQuery(), "k", "s"))
+    settings = service.settings()
+    settings["manual_teams"] = ["Alpha", "Beta"]
+    service.save_settings(settings)
+    return DraftView(service)
+
+
+def test_manual_teams_render_keeper_grid(qapp, tmp_path):
+    view = make_manual_view(tmp_path)
+    assert view.teams == ["Alpha", "Beta"]
+    assert view.table.rowCount() == 4  # 2 keeper slots per team
+    assert not view.offline_banner.isHidden()
+    assert "manual team list" in view.offline_banner.text()
+    assert view.save_button.isEnabled()
+    assert view.board is not None
+    assert view.board.start_order == ["Alpha", "Beta"]
+
+
+def test_manual_teams_save_keepers(qapp, tmp_path):
+    view = make_manual_view(tmp_path)
+    player_edit(view, 0).setText("Big Keeper")
+    view.save_button.click()
+    saved = keepers_mod.load(view.keepers_path)
+    assert saved == [keepers_mod.KeeperEntry("Alpha", "Big Keeper", 1)]
+    assert "Saved 1 keepers" in view.status_banner.text()

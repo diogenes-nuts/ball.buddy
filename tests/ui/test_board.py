@@ -292,3 +292,51 @@ def test_board_keeps_loaded_picks_when_file_corrupt(qapp, tmp_path):
     # falls back to the last loaded picks, banner explains why
     assert [p.player for p in board.picks] == ["Nikola Jokic"]
     assert "draft_picks.json" in board.alert_banner.text()
+
+
+# -- offline manual team list -------------------------------------------------
+
+
+def make_manual_service(tmp_path: Path) -> SyncService:
+    service = make_service(tmp_path)
+    settings = service.settings()
+    settings["manual_teams"] = ["Alpha", "Beta"]
+    service.save_settings(settings)
+    return service
+
+
+def test_manual_teams_render_offline_board(qapp, tmp_path):
+    board = DraftBoard(make_manual_service(tmp_path), [])
+    assert board.grid.rowCount() == 13
+    assert board.grid.columnCount() == 2
+    assert board.start_order == ["Alpha", "Beta"]
+    assert not board.offline_banner.isHidden()
+    assert "manual team list" in board.offline_banner.text()
+    assert board.commit_button.isEnabled()
+    # nothing persisted: the manual doc must not fake a real snapshot
+    assert not board.service.snapshot_path.exists()
+
+
+def test_manual_board_commits_pick(qapp, tmp_path):
+    board = DraftBoard(make_manual_service(tmp_path), [])
+    board.name_edit.setText("Big Man")
+    board.commit_button.click()
+    assert len(board.picks) == 1
+    assert board.picks[0].team == "Alpha"
+    assert board.picks_path.exists()
+
+
+def test_real_snapshot_wins_over_manual_teams(qapp, tmp_path):
+    service = make_manual_service(tmp_path)
+    save_fixture_snapshot(service)
+    board = DraftBoard(service, [])
+    assert board.start_order == ["Red", "Blue"]
+    assert board.offline_banner.isHidden()
+
+
+def test_manual_teams_with_keepers(qapp, tmp_path):
+    keepers = [KeeperEntry("Alpha", "Big Keeper", 1)]
+    board = DraftBoard(make_manual_service(tmp_path), keepers)
+    # round 1 col 0 (Alpha) is the forfeited keeper pick
+    assert "Keeper: Big Keeper" in board.grid.item(0, 0).text()
+    assert board.current_label.text().startswith("Round 1, pick 2")

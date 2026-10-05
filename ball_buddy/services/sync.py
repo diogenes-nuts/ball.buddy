@@ -190,8 +190,31 @@ class SyncService:
         result.report = self.bridge_names(document)
         return result
 
+    def effective_snapshot(self) -> dict | None:
+        """The snapshot every view should render from.
+
+        The last saved Yahoo snapshot when one exists (``load_last()``);
+        otherwise, if the user entered a manual team list in Settings
+        (``manual_teams``), a synthetic minimal snapshot so the draft board,
+        keeper entry, and the team-picker views work offline. The synthetic
+        doc is not written to snapshot.json — the real Yahoo snapshot always
+        wins once one exists.
+        """
+        document = self.load_last().snapshot
+        if document is None:
+            manual = (self.settings().get("manual_teams") or [])
+            document = snapshot_mod.manual_snapshot(
+                manual, str(self.settings().get("league_id", ""))
+            ) or None
+        return document
+
     def load_last(self) -> SyncResult:
-        """Offline fallback: the last saved snapshot + its age (or empty)."""
+        """Offline fallback: the last saved snapshot + its age (or empty).
+
+        No manual-team fallback here: a SyncResult with a snapshot would
+        look like a real (stale) sync to status banners. Views use
+        :meth:`effective_snapshot` for the manual case.
+        """
         result = SyncResult()
         result.snapshot_age_seconds = self._age()
         if not self.snapshot_path.exists():

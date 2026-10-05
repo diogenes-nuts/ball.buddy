@@ -34,6 +34,7 @@ from ball_buddy.domain.naming import bridge
 from ball_buddy.domain.players import PlayerPool
 from ball_buddy.io.state import StateError
 from ball_buddy.services.sync import SyncService
+from ball_buddy.ui.views import _offline
 from ball_buddy.ui.views.board import DraftBoard
 
 COLUMNS = ("Team", "Player", "Cost round", "Opt out", "Status")
@@ -68,6 +69,12 @@ class DraftView(QWidget):
         note.setWordWrap(True)
         header.addWidget(note)
         root.addLayout(header)
+
+        self.offline_banner = QLabel("")
+        self.offline_banner.setObjectName("banner")
+        self.offline_banner.setWordWrap(True)
+        self.offline_banner.setVisible(False)
+        root.addWidget(self.offline_banner)
 
         self.status_banner = QLabel("")
         self.status_banner.setObjectName("banner")
@@ -114,13 +121,19 @@ class DraftView(QWidget):
     # -- data loading ----------------------------------------------------------
 
     def refresh(self) -> None:
-        """Rebuild the grid from the last snapshot + any saved keepers.json."""
+        """Rebuild the grid from the effective snapshot + saved keepers.json.
+
+        The effective snapshot is the last Yahoo snapshot when one exists,
+        else the manual team list from Settings (offline mode) — keepers and
+        the embedded board both work from team names alone.
+        """
         self._rows = []
-        result = self.service.load_last()
-        if result.snapshot is None:
+        snapshot = self.service.effective_snapshot()
+        if snapshot is None:
             self.teams = []
             self.table.setRowCount(0)
             self.save_button.setEnabled(False)
+            _offline.hide_banner(self.offline_banner)
             self._set_banner(
                 self.alert_banner, "banner-alert", "Sync the league first (League → Sync now)"
             )
@@ -129,7 +142,11 @@ class DraftView(QWidget):
             return
 
         self._set_banner(self.alert_banner, "banner-alert", "")
-        self.teams = [team["name"] for team in result.snapshot.get("teams", [])]
+        if _offline.is_manual(snapshot):
+            _offline.show_banner(self.offline_banner)
+        else:
+            _offline.hide_banner(self.offline_banner)
+        self.teams = [team["name"] for team in snapshot.get("teams", [])]
         self.table.setRowCount(2 * len(self.teams))
         pool = PlayerPool.load(self.service.pool_path)  # once, shared by all rows
         for i, team in enumerate(self.teams):

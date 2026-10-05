@@ -177,3 +177,29 @@ def test_empty_rosters_do_not_crash(qapp, tmp_path: Path) -> None:
     v.pick_teams("Red", "Blue")
     assert "No snapshot" not in v.headline_label.text()
     assert "Empty roster" in v.week_note.text()
+
+
+# -- offline manual team list -------------------------------------------------
+
+
+def test_manual_teams_populate_combos(qapp, tmp_path):
+    service = SyncService(tmp_path, client=YahooClient(FakeQuery(), "k", "s"))
+    settings = service.settings()
+    settings["manual_teams"] = ["Alpha", "Beta"]
+    service.save_settings(settings)
+    write_csv([P1, P2, P3, P4], service.pool_path)
+    save_keepers(
+        [
+            KeeperEntry(team="Alpha", player="P1", cost_round=1),
+            KeeperEntry(team="Beta", player="P3", cost_round=1),
+        ],
+        service.data_dir / "keepers.json",
+    )
+    view = MatchupView(service)
+    assert not view.offline_banner.isHidden()
+    assert "manual team list" in view.offline_banner.text()
+    names = [view.team_a_combo.itemText(i) for i in range(view.team_a_combo.count())]
+    assert names == ["Alpha", "Beta"]
+    # pre-draft rosters resolve from the manual team's keepers
+    view.pick_teams("Alpha", "Beta")
+    assert view.marginal_table.rowCount() == 2

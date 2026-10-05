@@ -200,3 +200,37 @@ def test_load_last_corrupt_snapshot_reports_error(tmp_path):
     result = service.load_last()
     assert result.snapshot is None
     assert "not valid JSON" in result.error
+
+
+# -- offline manual team list (effective_snapshot) -----------------------------
+
+
+def test_effective_snapshot_none_without_manual_setting(tmp_path):
+    service = make_service(tmp_path, client=FakeQuery())
+    assert service.effective_snapshot() is None
+
+
+def test_effective_snapshot_manual_without_snapshot_file(tmp_path):
+    service = make_service(tmp_path, client=FakeQuery())
+    settings = service.settings()
+    settings["manual_teams"] = ["Alpha", "Beta"]
+    service.save_settings(settings)
+    doc = service.effective_snapshot()
+    assert doc is not None
+    assert doc["source"] == "manual"
+    assert [team["name"] for team in doc["teams"]] == ["Alpha", "Beta"]
+    # the synthetic doc is not persisted — no fake stale snapshot
+    assert not service.snapshot_path.exists()
+    # load_last stays empty (its SyncResult must not look like a real sync)
+    assert service.load_last().snapshot is None
+
+
+def test_effective_snapshot_real_snapshot_wins_over_manual(tmp_path):
+    service = make_service(tmp_path, client=FakeQuery())
+    settings = service.settings()
+    settings["manual_teams"] = ["Alpha", "Beta"]
+    service.save_settings(settings)
+    assert service.run().ok
+    doc = service.effective_snapshot()
+    assert doc is not None
+    assert doc["source"] != "manual"

@@ -16,4 +16,8 @@ Draft-day board (first feature per SPEC §1.2). **M2 complete** (M2.1 keepers, M
 - `ball_buddy/domain/recommend.py` — per-pick top-N from real pool columns (`rank`, `value`, `pos`, `name`); excludes drafted picks + active keepers; **opted-out keepers stay draftable/suggestable** (their pick isn't forfeited); unranked rows carry `rank=None` → UI "—" (no invented numbers).
 - Suggestion panel in `board.py` updates per current pick; alias bridging both sides.
 
+## Offline mode (manual team list)
+
+`board.py` and `draft.py` (keeper entry + embedded board) resolve teams from `SyncService.effective_snapshot()` (see `agents/002_yahoo/status.md` "Offline mode"): the last Yahoo snapshot when one exists, else a synthetic doc from `settings["manual_teams"]` (League -> Settings -> "Team list (offline)"). A shared "Offline - manual team list" banner (`ball_buddy/ui/views/_offline.py`) is shown while in manual mode; no teams at all -> the old "Sync the league first" alert. Everything else is unchanged: keepers from `keepers.json`, snake math, commits/undo, suggestions.
+
 Plans: dev.md. History: git log; done.md.

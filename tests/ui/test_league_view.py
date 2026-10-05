@@ -262,3 +262,51 @@ def test_manual_order_applied_when_no_live_order(qapp, tmp_path):
     # stale/unknown names are dropped, new teams appended in snapshot order
     service.save_settings({"league_id": "1234", "manual_draft_order": ["Blue", "Gone"]})
     assert view._manual_order_for(["Red", "Blue", "Green"]) == ["Blue", "Red", "Green"]
+
+
+# -- offline manual team list -------------------------------------------------
+
+
+def test_settings_dialog_saves_manual_teams(qapp, tmp_path):
+    from ball_buddy.ui.views.league import SettingsDialog
+
+    view = make_view(tmp_path, qapp)
+    dialog = SettingsDialog(view.service, view)
+    dialog.manual_teams_edit.setPlainText("Alpha\n\n  Beta  \n\nGamma")
+    dialog._save()
+    saved = view.service.settings()
+    assert saved["manual_teams"] == ["Alpha", "Beta", "Gamma"]
+
+
+def test_manual_mode_renders_teams_and_order(qapp, tmp_path):
+    service = SyncService(tmp_path, client=YahooClient(FakeQuery(), "k", "s"))
+    settings = service.settings()
+    settings["manual_teams"] = ["Alpha", "Beta"]
+    service.save_settings(settings)
+    view = LeagueView(service)
+    assert view.snapshot is not None
+    assert view.snapshot["source"] == "manual"
+    assert view.league_label.text() == "Manual team list (offline)"
+    assert not view.offline_banner.isHidden()
+    assert "manual team list" in view.offline_banner.text()
+    assert view.teams_table.rowCount() == 2
+    assert view.teams_table.item(0, 0).text() == "Alpha"
+    assert "manual team list" in view.status_banner.text().lower()
+    # order editable offline: 14-round snake, buttons live, no live order
+    assert view.draft_table.rowCount() == 14 * 2
+    assert view.save_order_button.isEnabled()
+    assert view.schedule_empty.isHidden() is False
+
+
+def test_manual_order_saved_offline(qapp, tmp_path):
+    service = SyncService(tmp_path, client=YahooClient(FakeQuery(), "k", "s"))
+    settings = service.settings()
+    settings["manual_teams"] = ["Alpha", "Beta"]
+    service.save_settings(settings)
+    view = LeagueView(service)
+    view.draft_table.setCurrentCell(0, 0)  # swap rows 0/1 in the round-1 block
+    view._move_selected(1)
+    # move persists immediately (re-render would otherwise drop the swap)
+    assert view.service.settings()["manual_draft_order"] == ["Beta", "Alpha"]
+    assert view.draft_table.item(0, 2).text() == "Beta"
+    assert view.draft_table.item(1, 2).text() == "Alpha"

@@ -48,6 +48,7 @@ from ball_buddy.domain.keepers import KeeperEntry
 from ball_buddy.domain.players import PlayerPool
 from ball_buddy.domain.trade import Trade, TradeResult
 from ball_buddy.services.sync import SyncResult, SyncService
+from ball_buddy.ui.views import _offline
 from ball_buddy.ui.views.matchup import CAT_LABELS
 
 _BASE_NOTE = "No trade entered — pick players above, then Analyze."
@@ -111,6 +112,12 @@ class TradeView(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(8)
+
+        self.offline_banner = QLabel("")
+        self.offline_banner.setObjectName("banner")
+        self.offline_banner.setWordWrap(True)
+        self.offline_banner.setVisible(False)
+        root.addWidget(self.offline_banner)
 
         # --- header ------------------------------------------------------------
         grid = QGridLayout()
@@ -221,6 +228,7 @@ class TradeView(QWidget):
         self.opp_combo.currentIndexChanged.connect(self._rebuild_give_combos)
 
         self.apply_result(service.load_last())
+        _offline.apply_view_fallback(self, service, self.offline_banner)
 
     # -- data loading -----------------------------------------------------
 
@@ -229,6 +237,7 @@ class TradeView(QWidget):
         ``WaiverView.apply_result``."""
         if result.snapshot is not None:
             self.snapshot = result.snapshot
+            _offline.hide_banner(self.offline_banner)
             self._refresh_combos()
 
     def _refresh_combos(self) -> None:

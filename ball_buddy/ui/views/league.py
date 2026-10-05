@@ -25,12 +25,14 @@ from PySide6.QtWidgets import (
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
 from ball_buddy.domain.league import LeagueConfig, snake_order
 from ball_buddy.services.sync import SyncResult, SyncService
+from ball_buddy.ui.views import _offline
 from ball_buddy.ui.views.pool_import import PoolImportDialog
 
 DRAFT_ROUNDS = 14  # SPEC §1.1: 14-slot roster
@@ -83,6 +85,21 @@ class SettingsDialog(QDialog):
         form.addRow("Consumer key:", self.consumer_key_edit)
         form.addRow("Consumer secret:", self.consumer_secret_edit)
         form.addRow(note)
+        self.manual_teams_edit = QTextEdit()
+        self.manual_teams_edit.setPlaceholderText("one team name per line (offline mode)")
+        self.manual_teams_edit.setPlainText(
+            "\n".join(settings.get("manual_teams") or [])
+        )
+        self.manual_teams_edit.setFixedHeight(110)
+        manual_note = QLabel(
+            "Offline mode: the league's team names, one per line, used when "
+            "there is no Yahoo snapshot yet (draft board, keepers, and the "
+            "team pickers). Ignored once a real sync exists."
+        )
+        manual_note.setObjectName("secondary")
+        manual_note.setWordWrap(True)
+        form.addRow("Team list (offline):", self.manual_teams_edit)
+        form.addRow(manual_note)
         self.reset_button = QPushButton("Reset all data…")
         # No "danger" theme token exists; the ink-fill primary style is the
         # strongest available visual weight, so the destructive action reads
@@ -126,6 +143,11 @@ class SettingsDialog(QDialog):
         settings["league_id"] = self.league_id_edit.text().strip()
         settings["consumer_key"] = self.consumer_key_edit.text().strip()
         settings["consumer_secret"] = self.consumer_secret_edit.text().strip()
+        settings["manual_teams"] = [
+            line.strip()
+            for line in self.manual_teams_edit.toPlainText().splitlines()
+            if line.strip()
+        ]
         self.service.save_settings(settings)
         self.accept()
 
@@ -173,6 +195,12 @@ class LeagueView(QWidget):
             header.addWidget(button)
         root.addLayout(header)
 
+        self.offline_banner = QLabel("")
+        self.offline_banner.setObjectName("banner")
+        self.offline_banner.setWordWrap(True)
+        self.offline_banner.setVisible(False)
+        root.addWidget(self.offline_banner)
+
         # --- status banners ---------------------------------------------------
         self.status_banner = QLabel("")
         self.status_banner.setObjectName("banner")
@@ -196,8 +224,31 @@ class LeagueView(QWidget):
 
         last = service.load_last()
         self.apply_result(last)
+        self._apply_manual_fallback()
 
     # -- panes -----------------------------------------------------------------
+
+    def _apply_manual_fallback(self) -> None:
+        """No Yahoo snapshot: render the manual team list from Settings.
+
+        Offline mode — teams + the editable start order are all the views
+        need from the league; keepers and the board run off team names.
+        """
+        snapshot = self.service.effective_snapshot()
+        if snapshot is None or not _offline.is_manual(snapshot):
+            return
+        self.snapshot = snapshot
+        self.league_label.setText("Manual team list (offline)")
+        _offline.show_banner(self.offline_banner)
+        self._render_tables()
+        self._set_banner(
+            self.status_banner,
+            "banner",
+            "No snapshot yet — the draft board, keepers, and team pickers run "
+            "off the manual team list (League -> Settings -> Team list). "
+            "Sign in and sync to get rosters, schedule, and standings.",
+        )
+        self._set_order_controls()
 
     def _panel(self) -> QWidget:
         panel = QWidget()
@@ -297,6 +348,7 @@ class LeagueView(QWidget):
         if result.snapshot is not None:
             self.snapshot = result.snapshot
             self.league_label.setText(result.snapshot.get("league", {}).get("name") or "League")
+            _offline.hide_banner(self.offline_banner)
             self._render_tables()
 
         # status banner
@@ -467,6 +519,9 @@ class LeagueView(QWidget):
         order = list(self._manual_order)
         order[row], order[target] = order[target], order[row]
         self._manual_order = order
+        # Persist immediately: _render_tables recomputes the order from
+        # settings, so an in-memory-only swap would be dropped on redraw.
+        self._save_manual_order()
         self._render_tables()
 
     def _save_manual_order(self) -> None:

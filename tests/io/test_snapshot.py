@@ -10,6 +10,7 @@ from ball_buddy.io.yahoo.snapshot import (
     SNAPSHOT_VERSION,
     SnapshotError,
     load_snapshot,
+    manual_snapshot,
     save_snapshot,
     to_snapshot,
 )
@@ -146,6 +147,37 @@ def test_missing_top_field_raises(tmp_path):
     path.write_text(json.dumps(raw), encoding="utf-8")
     with pytest.raises(SnapshotError, match="missing fields"):
         load_snapshot(path)
+
+
+def test_manual_snapshot_shape():
+    doc = manual_snapshot(["Alpha", "  Beta ", "", "Gamma"], league_id="847")
+    assert [team["name"] for team in doc["teams"]] == ["Alpha", "Beta", "Gamma"]
+    assert [team["team_id"] for team in doc["teams"]] == [
+        "manual-01",
+        "manual-02",
+        "manual-03",
+    ]
+    assert all(team["players"] == [] and team["manager"] == "" for team in doc["teams"])
+    assert doc["source"] == "manual"
+    assert doc["league"]["key"] == "847"
+    # start order must stay editable via the League view's manual order
+    assert doc["draft"]["order"] == []
+    assert doc["schedule"] == []
+    assert doc["standings"] == []
+
+
+def test_manual_snapshot_empty_input_returns_empty_dict():
+    assert manual_snapshot([]) == {}
+    assert manual_snapshot(["", "  "]) == {}
+
+
+def test_manual_snapshot_round_trip(tmp_path):
+    path = tmp_path / "snapshot.json"
+    save_snapshot(manual_snapshot(["Alpha", "Beta"]), path)
+    loaded = load_snapshot(path)
+    assert loaded is not None
+    assert loaded["source"] == "manual"
+    assert [team["name"] for team in loaded["teams"]] == ["Alpha", "Beta"]
 
 
 def test_bad_team_raises(tmp_path):

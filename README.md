@@ -56,13 +56,20 @@ to start completely fresh.
 - **Offline banner?** Without network access (or after a token expires) the
   League page shows "Offline — showing last snapshot (synced <age>)". That is
   expected, not an error; reconnect and press **Sync now**.
+- **No Yahoo sync at all (yet)?** League → Settings → **Team list (offline)**:
+  paste your 14 team names, one per line, and save. The league page, keeper
+  entry, draft board, and the team pickers on the engine pages then run on
+  that list (every page shows an "Offline — manual team list" banner until a
+  real sync happens). Set the start order with the up/down buttons in the
+  Draft order pane, import the pool, and enter keepers + picks as normal.
 - **Reset all data** is in League → Settings. It wipes *everything*,
   including your Yahoo login and the player pool — you'll sign in and import
   again.
 - **Draft board** — enter your keepers, then enter picks as they're called;
   entered picks persist in `data/draft_picks.json`.
-- **Lineups / Waivers / Trades** — these work best after at least one sync,
-  so the engine has rosters to work with.
+- **Lineups / Waivers / Trades** — pre-draft, the engine builds rosters from
+  your keepers + entered picks, so these pages are usable on draft day; after
+  syncs they use Yahoo rosters as you play.
 
 ## If it crashes
 

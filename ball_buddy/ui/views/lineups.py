@@ -49,6 +49,7 @@ from ball_buddy.domain.keepers import KeeperEntry
 from ball_buddy.domain.lineup import LineupResult
 from ball_buddy.domain.players import PlayerPool
 from ball_buddy.services.sync import SyncResult, SyncService
+from ball_buddy.ui.views import _offline
 from ball_buddy.ui.views.matchup import CAT_LABELS
 
 _BASE_NOTE = (
@@ -130,6 +131,12 @@ class LineupView(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(8)
+
+        self.offline_banner = QLabel("")
+        self.offline_banner.setObjectName("banner")
+        self.offline_banner.setWordWrap(True)
+        self.offline_banner.setVisible(False)
+        root.addWidget(self.offline_banner)
 
         # --- header ------------------------------------------------------------
         grid = QGridLayout()
@@ -240,6 +247,7 @@ class LineupView(QWidget):
         self.team_combo.currentIndexChanged.connect(self._rebuild_roster)
 
         self.apply_result(service.load_last())
+        _offline.apply_view_fallback(self, service, self.offline_banner)
 
     # -- data loading -----------------------------------------------------
 
@@ -248,6 +256,7 @@ class LineupView(QWidget):
         ``MatchupView.apply_result``."""
         if result.snapshot is not None:
             self.snapshot = result.snapshot
+            _offline.hide_banner(self.offline_banner)
             self._refresh_combos()
 
     def _refresh_combos(self) -> None:
