@@ -1,4 +1,4 @@
-# State — ball.buddy: ROADMAP COMPLETE (M0–M7 all committed)
+# State — ball.buddy: M1 live check — crash fixed+tested, 403 wall reported; awaiting user decision (apply vs offline)
 (Rewrite this whole file at every checkpoint. Never append. If a fact
 no longer matters, delete it — git history keeps the trail.)
 
@@ -6,31 +6,45 @@ no longer matters, delete it — git history keeps the trail.)
 does not count.
 
 ## Status
-- Position: **ALL ROADMAP PHASES DONE.** M0–M6 committed earlier; M7.1 (icon + frozen data dir) commit 6d09541, M7.2 (reset + error UX + README) commit 67edb6c. In flight: uncommitted doc-only edits (ROUTING.md, agents/scaffold/status.md + done.md M7.2 entry) — no more phases exist to carry them; they land on the next commit or the repo-lifecycle auto-commit on clean exit. Do NOT git commit manually.
-- Exact next step: none (project complete). Possible follow-ups only if user asks: user-performed live Yahoo login (AGENTS.md "M1 live check" steps; League → Settings), real-week matchup hand-check (needs synced data), trade deadline + tx cutoff league items, 4-4 tie-break (user → comm).
-- Rules in force (user's own words): draft tracker top priority; tactile-cream-ui for ALL UI decisions; slice large phases (subagent ctx); implement all remaining phases sequentially without pausing; if a subagent aborts, inspect then resume.
+- Position: ROADMAP done + on GitHub (public, diogenes-nuts/ball.buddy, main; last commit 46db628). **All fixes this iteration shipped: 272 passed + 1 skipped, ruff clean, exe REBUILT, docs updated.** User told: crash root cause + fix, 403 wall (yfpy #84 legacy-app read-access removal), options (apply at sports.yahoo.com/developer / offline mode / wait). **Awaiting user response**: they may (a) try the fixed exe's Sync (now shows clean "Sync failed: Yahoo has blocked this app's fantasy access (403...)" banner — NOT a crash, NOT a false re-sign-in prompt); (b) go apply to the gated program; (c) pick offline mode; (d) report fresh errors.
+- **Done this turn (all committed? NO — uncommitted since 46db628):** 1) sync crash fix (league.py: store-first `_store_sync_result` + `thread.finished -> _on_sync_thread_done`; old code `thread.wait()` in queued slot = deadlock; proven: reintroduced bug -> regression test hangs, fixed -> passes in 0.3s); 2) regression test `tests/ui/test_league_view.py::test_sync_now_thread_round_trip` + `_spin_until` pump helper; 3) client.py `_call`: 403 "application is not authorized" -> distinct `YahooError` app-ban message (was mis-mapped to "sign in again") + test `test_403_app_ban_maps_to_yahoo_error_not_relogin`; 4) docs: 002_yahoo/status.md (403 mapping, JWT token fact, yfpy #84 wall, sync-thread pattern note).
+- **If user applies to gated program and gets approval/creds:** new client may need re-sign-in (new client id/secret); flow already supports confidential clients (Basic auth) so nothing else to build. If offline mode: M1 items 3-4 (pool import from N:\LLM\projects\autodraft\data\hashtag_import.html, manual order, offline banner) work with zero Yahoo data — M1 "12 real teams" item is impossible until API access returns; note that in any M1 sign-off.
+- **LEFT:** nothing code-side. On user's next message: diagnose accordingly. Before any exit/commit: verify data/ (tokens) never lands in git (it's gitignored; dist/data also outside repo tree). Do NOT git commit manually.
+- User env note (told no): harness bash `timeout` unreliable (150s cap ran 14 min) — self-limit via in-process watchdog (threading.Timer->os._exit) <=30s.
+
+## What's in the tree (uncommitted since 46db628)
+- **oauth.py (NEW)**: in-app OAuth 2.0. https loopback https://localhost:8480/callback (console requires https) + http fallback; ensure_loopback_cert (RSA-2048 SHA256 10y, data/oauth_{cert,key}.pem); _ThreadingHTTPServer (ssl BEFORE super().__init__); LocalCallbackServer ONE-SHOT (2nd GET->400) + code_verifier + wait(0); new_pkce (S256); build_authorize_url (client_id required + PKCE challenge); begin_sign_in(data_dir,key,secret=""); complete_exchange/exchange_code(+verifier); refresh_access_token (redirect https://www.yahoo.com); _token_request (secret->Basic else body client_id); extract_guid (JWT sub); new_token_dict (guid best-effort); parse_paste.
+- **client.py**: from_tokens key-required/secret-optional; yfpy placeholder "public"; _TOKEN_FIELDS excludes consumer_secret+guid; _call: 403-ban -> YahooError, token words -> LoginRequiredError, else YahooError.
+- **sync.py**: _live_tokens fresh<3240s else refresh; sign_in_ready KEY-ONLY; save_sign_in; run() maps errors to SyncResult (needs_login vs error banner).
+- **league.py**: SignInDialog + SyncWorker both store-first/thread.finished (no wait() in queued slots).
+- tests: 272 passed + 1 skipped. docs: README (public client/blank secret/PKCE/https callback), 002_yahoo/status.md current.
+- **dist/data (gitignored):** settings.json (league_id 847, long consumer_key, secret ""); yahoo_tokens.json (JWT token, guid "", bearer); oauth_{cert,key}.pem.
+- Repro scripts deleted. /tmp/league_fixed.py leftover (harmless).
 
 ## Verification
-- Final baseline (67edb6c): pytest 234 passed + 1 skipped, ruff clean, exe dist/ball.buddy/ball.buddy.exe (5.46 MB, with icon, rebuilt at M7.2).
-- Failing / not-yet: live Yahoo login still user-performed. Real-week matchup hand-check pending (no synced data). Open league items: 4-4 tie-break (user→comm; h2h mode works via snapshot standings, yahoo_default pushes without per-team cat-win evidence — documented), trade deadline + tx cutoff. data_tmp_check/ junk dir: deletion blocked by safety gate, gitignored, user can delete manually (told yes).
+- 272 passed + 1 skipped + ruff clean + exe rebuilt (this turn, final).
+- Regression test PROVEN meaningful: with wait() bug reintroduced -> test hangs >60s (main loop blocked, even its own deadline can't fire); with fix -> 0.3s pass.
+- Live probes: refresh 200 (fresh 1036-char JWT); fantasy metadata 403 app-not-authorized (fresh token) / 401 token_expired (stale).
+- Minimal PySide6 pattern test: PASS (deleted).
 
 ## Findings
-- Yahoo wrapper: yffapi/pyffl do NOT exist on PyPI; real = **yfpy 17.0.0**. SPEC corrected in agents/SPEC.md (3 mentions) and committed with M7.1. told yes.
-- M5.1 engine facts: pool ONE `pos` column (slash-joined, tokens ⊆ {PG,SG,SF,PF,C}); G<-PG|SG, F<-SF|PF, UTL = >=2 tokens; project_roster position-agnostic → optimizer = C(14,10)=1001 sets + backtracking fill, ~40ms; mc_trials doesn't change the choice. told yes.
-- M6 trade facts: their_delta_p == -my_delta_p exactly (1-p construction) → fairness_flag (my delta < -0.10) is the only quality signal; pushes treated as losses for both (documented); view has no week picker (season projections); give entry = combo lists over resolved roster names. shell.py: PlaceholderView fall-through → AssertionError, placeholders.py DELETED (all 6 NAV_ITEMS real). told yes.
-- M6.2 bug (reviewer-caught): _rebuild_give_grid deleteLater()'d kept live widgets → RuntimeError after 2nd Add once event loop ran; fixed with live-set guard + regression test (processEvents alone does NOT flush deferred deletes — sendPostedEvents(widget, DeferredDelete) needed). told yes.
-- M7.1 facts: data dir was Path(__file__).parents[2]/"data" → under frozen onedir that was _internal/data (wrong); now pathing.resolve_data_dir() (frozen → next to exe). Icon = build-time PNG-in-ICO via scripts/make_icon.py (zero new deps, PySide6 painter only), shared draw_app_icon() for window + .ico. told yes.
-- M7.2 facts: reset = rmtree(ignore_errors) + return not exists (True = fully wiped); all loaders tolerate wiped dir (empty defaults); post-reset Qt font warning can recreate data/ with only app.log — cosmetic, loader reads as empty (reviewer-accepted, documented). excepthook: log_path inside try so re-raise to default hook always survives; qInstallMessageHandler ≥ Warning → data/app.log (dev console loses Qt warnings to file — known, acceptable). told yes.
-- Subagent ops: single sequential subagent calls (planner/worker/reviewer each own call, plan embedded in worker task) have worked every time since the M5.1 chain handoff failures. On no-output, check .pi/reports/ for the last planner report. Rebuild note: a RUNNING ball.buddy.exe locks qoffscreen.dll — kill it before pyinstaller or build fails PermissionError (worker killed a stray instance during M7.2). told no (internal).
-- M0 stack: Python 3.14.7, PySide6 6.11.2, pytest 9.1.1, ruff 0.16.10, pyinstaller 6.22.3 (.venv/Scripts/pyinstaller.exe; `python -m pyinstaller` fails), yfpy 17.0.0; -y into non-empty dist/. told yes.
-- League facts (user-confirmed, pre-draft 2026): roster 14 = 10 active + 3 BN + 1 cond IR; 24 keepers (cost = prev round + comm penalty; in-app entry + opt-out); FAAB $100 only add path, 3 adds/wk, unlimited drops, 3-day hold; lineups daily; playoffs top 4, 2 byes, single elim; pure 9-cat unweighted. told yes.
-- Phase status: M0 scaffold ✓, M1 yahoo/league/data ✓, M2 draft board ✓, M3 engine+matchup ✓, M4 waivers ✓, M5 lineups ✓, M6 trades ✓, M7 packaging ✓ — ROADMAP complete. told yes.
+- Sign-in end-to-end works incl. persistence (told yes). Flashing dialog = sign-in dialog closing (told yes, benign).
+- Sync crash = wait()-in-queued-slot deadlock (frozen exe = hard crash, no app.log); fixed + proven (told yes).
+- **Yahoo 403 wall = platform-wide legacy-app read-access removal (yfpy #84, since ~2026-07-22); create-app form no longer offers Fantasy Sports permission; gated program at sports.yahoo.com/developer; our probes confirm (fresh JWT token still 403s)** (told yes — reported this turn).
+- Fresh token = real ~1KB JWT (1h); refresh grant works public-client style (client_id body, redirect https://www.yahoo.com) (told in report).
+- (carried) Public/PKCE (told yes); MhNtBgeJ=App ID (told yes); client_id param (told yes); https callback (told yes); harness timeout unreliable (told NO).
+- League facts: 14=10+3BN+1IR; 24 keepers; FAAB $100 3 adds/wk; daily lineups; top-4 playoffs 2 byes SE; pure 9-cat. Open: 4-4 tie-break, trade deadline.
+- Stack: Py 3.14.7, PySide6 6.11.2, yfpy 17.0.0, cryptography 50.0.2, requests 2.32.5, pytest 9.1.1, ruff 0.16.10, pyinstaller 6.22.3 (FORWARD slashes, -y).
 
 ## U-turns
-- Slicing: big chains -> per-slice -> single sequential subagent calls (all reliable since). told no (internal).
-- SPEC Yahoo lib: yffapi/pyffl -> yfpy 17.0.0 (SPEC corrected+committed). told yes.
+- (carried) Confidential->Public/PKCE; data dir above exe; in-app OAuth; https callback; two-phase begin/complete; SPEC lib->yfpy.
+- "crash = unexplained hard abort" -> wait()-in-slot deadlock (told yes). "need JWT fix on our side" -> tokens already JWT; 403 upstream (told yes). "403 = dead token" -> app ban, distinct error (told yes).
 
 ## Dead ends
-- edit() non-ASCII in oldText: round-trip failures; ASCII-only anchors or fresh-read copies; don't mix cross-file edits in one call. told no (internal).
-- pyinstaller: needs -y into non-empty dist/; `python -m pyinstaller` no (use .venv/Scripts/pyinstaller.exe); running exe locks qoffscreen.dll (kill first). told no (internal, minor).
-- MainWindow() without QApplication([]) first: hard crash rc=127, output lost. told no (internal).
+- (carried) yahoo_oauth browser flow in --windowed; contextlib.redirect_stdout; user data in onedir; edit() non-ASCII oldText; pyinstaller backslashes; MainWindow() w/o QApplication; plain-http callback; ssl after init; modal in __init__.
+- Bash `timeout` (14-min overrun) — in-process watchdog (told NO).
+- GUI-level monkeypatched instance-slot repros (self-contradictory) — minimal standalone (told NO).
+- scope/PKCE/refresh tweaks to cure 403 — upstream policy (told yes).
+
+## Goal (latest user requests, verbatim)
+"Sign-in appears to have worked. An app dialog popped up but disappeared before I could read it. Clicking \"Sync now\" crashes the app." / "Timeout 150s but it ran for 14 min"

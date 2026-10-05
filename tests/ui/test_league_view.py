@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 from pathlib import Path
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"  # must be set before any PySide6 import
@@ -210,6 +211,42 @@ def test_settings_reset_no_keeps_data(qapp, tmp_path, monkeypatch):
     assert view.service.data_dir.exists()
     assert view.service.settings()["league_id"] == "1234"
     assert dialog.reset_status.text() == ""
+
+
+def _spin_until(predicate, timeout: float = 10.0) -> None:
+    """Pump the Qt event loop until predicate() is true. The sync worker runs
+    on a QThread; its signals (worker.finished -> thread.quit, then
+    thread.finished) are delivered on the main loop, so we must pump here.
+    A blocking wait() inside a queued slot would deadlock this pump."""
+    deadline = time.monotonic() + timeout
+    app = QApplication.instance()
+    while not predicate():
+        if time.monotonic() > deadline:
+            raise AssertionError("timed out waiting for sync thread to finish")
+        app.processEvents()
+        time.sleep(0.02)
+
+
+def test_sync_now_thread_round_trip(qapp, tmp_path):
+    """Regression for the "Sync now crashes the app" deadlock.
+
+    The old _on_sync_done called thread.wait() inside the queued finished
+    slot, which blocked the main loop so thread.quit() (queued behind it)
+    could never run -> the app wedged. The fix stores the result first and
+    drives the UI from thread.finished. This drives the REAL _sync_now thread
+    path and requires it to come back (thread torn down, banner updated);
+    the old code hangs here until the timeout."""
+    view = make_view(tmp_path, qapp)
+    view.sync_button.setEnabled(True)
+    view.import_button.setEnabled(True)
+    assert view._thread is None
+    view._sync_now()
+    assert view._thread is not None  # the worker thread is up
+    _spin_until(lambda: view._thread is None and view._worker is None)
+    # the injected FakeQuery client returns a good result -> clean "Synced"
+    assert "Syncing\u2026" not in view.status_banner.text()
+    assert view.sync_button.isEnabled()
+    assert view.import_button.isEnabled()
 
 
 def test_manual_order_applied_when_no_live_order(qapp, tmp_path):

@@ -1,20 +1,21 @@
 """Facade over yfpy's ``YahooFantasySportsQuery``.
 
-The client owns the yfpy instance (constructed lazily so a missing consumer
-key surfaces as :class:`LoginRequiredError` instead of yfpy's ``sys.exit(1)``)
-and exposes :meth:`fetch_all`, which runs the M1 fetch set (plan §2) and
-returns the raw model objects for :mod:`ball_buddy.io.yahoo.snapshot` to map
-onto plain dicts.
+The client owns the yfpy instance and exposes :meth:`fetch_all`, which runs
+the M1 fetch set (plan §2) and returns the raw model objects for
+:mod:`ball_buddy.io.yahoo.snapshot` to map onto plain dicts.
 
-yfpy's auth (yahoo-oauth, 3-legged) opens a browser; without one it prints
-the URL for manual code entry. After a successful query the token fields are
-persisted via :meth:`persist_token` so later launches refresh silently.
+Sign-in is NOT done here: yfpy's own browser flow needs a console
+(``input()``), which the windowed exe doesn't have. The app drives OAuth
+itself (see :mod:`ball_buddy.io.yahoo.oauth`) and hands a live token dict
+to :meth:`from_tokens`. yfpy's constructor still ``sys.exit(1)``s on config
+problems — that is mapped to :class:`LoginRequiredError`.
 """
 
 from __future__ import annotations
 
 import contextlib
 import sys
+import time
 from pathlib import Path
 
 
@@ -26,31 +27,45 @@ class LoginRequiredError(YahooError):
     """No usable credentials, or the saved token is dead: re-sign in (R2)."""
 
 
+# consumer_secret is deliberately absent: public clients legitimately have an
+# empty secret (PKCE). "guid" is absent too: it is bookkeeping only (no API
+# call sends it) and can legitimately be empty for non-JWT tokens; every
+# other field must be present.
 _TOKEN_FIELDS = (
     "access_token",
-    "guid",
     "refresh_token",
     "token_time",
     "token_type",
     "consumer_key",
-    "consumer_secret",
 )
 
 
 class YahooClient:
     """One client per (league_id, game) pair; query is injectable for tests."""
 
-    def __init__(self, query: object, consumer_key: str, consumer_secret: str) -> None:
+    def __init__(
+        self,
+        query: object,
+        consumer_key: str,
+        consumer_secret: str,
+        token_payload: dict | None = None,
+    ) -> None:
         self._query = query
         self._consumer_key = consumer_key
         self._consumer_secret = consumer_secret
+        self._token = token_payload or {}
 
     @classmethod
-    def from_settings(cls, settings: dict, tokens: dict | None) -> YahooClient:
-        """Build a client from ``settings.json``/``yahoo_tokens.json`` dicts.
+    def from_tokens(cls, settings: dict, tokens: dict) -> YahooClient:
+        """Build a client from settings + a LIVE token dict.
 
-        ``YahooFantasySportsQuery.__init__`` calls ``sys.exit(1)`` when the
-        consumer key/secret is missing — map that to LoginRequiredError.
+        The token must be fresh enough that yfpy's internal
+        ``token_is_valid()`` (a 3540-second window off ``token_time``) is
+        true — otherwise yahoo_oauth would try to refresh with a callback
+        URI we don't control. Callers refresh before constructing.
+
+        ``YahooFantasySportsQuery.__init__`` calls ``sys.exit(1)`` on
+        config problems — map that to LoginRequiredError.
         """
         try:
             from yfpy import query as yfpy_query
@@ -58,35 +73,70 @@ class YahooClient:
             raise LoginRequiredError(f"yfpy is not installed: {exc}") from exc
 
         league_id = settings.get("league_id", "")
-        consumer_key = settings.get("consumer_key", "")
-        consumer_secret = settings.get("consumer_secret", "")
-        if not league_id or not consumer_key or not consumer_secret:
+        consumer_key = tokens.get("consumer_key") or settings.get("consumer_key", "")
+        consumer_secret = (
+            tokens.get("consumer_secret") or settings.get("consumer_secret", "")
+        )
+        if not league_id or not consumer_key:
             raise LoginRequiredError(
-                "Yahoo consumer key, secret, and league id must be set (Sign in)"
+                "Yahoo consumer key and league id must be set (Sign in)"
             )
+        if not tokens.get("access_token"):
+            raise LoginRequiredError("Sign in to Yahoo first (League -> Sign in).")
+        # token_time=0 would make yahoo_oauth consider the token stale and
+        # refresh with its own callback; stamp now so the internal check
+        # passes and its (unused) refresh path is never taken.
+        # yfpy exits on an EMPTY consumer secret, but public clients have
+        # no secret at all — pass a placeholder to it (never sent to Yahoo;
+        # yfpy's OAuth object never re-authenticates while the token is
+        # fresh). The client itself keeps the real (possibly empty) value.
+        yfpy_secret = consumer_secret or "public"
+        yfpy_token_json = dict(tokens)
+        yfpy_token_json.setdefault("token_time", time.time())
+        yfpy_token_json["consumer_secret"] = yfpy_secret
+        query = None
         with contextlib.redirect_stdout(sys.stderr):
             with contextlib.suppress(SystemExit):
                 query = yfpy_query.YahooFantasySportsQuery(
                     league_id=league_id,
                     game_code="nba",
-                    yahoo_access_token_json=tokens,
+                    yahoo_consumer_key=consumer_key,
+                    yahoo_consumer_secret=yfpy_secret,
+                    yahoo_access_token_json=yfpy_token_json,
                     env_var_fallback=False,
                     save_token_data_to_env_file=False,
-                    browser_callback=True,
                 )
         if query is None:
             raise LoginRequiredError(
                 "Yahoo login was not completed (consumer key/secret invalid?)"
             )
-        return cls(query, consumer_key, consumer_secret)
+        token_json = dict(tokens)
+        token_json.setdefault("token_time", time.time())
+        return cls(query, consumer_key, consumer_secret, token_json)
+
+    @property
+    def token(self) -> dict:
+        """The live token dict this client was built from."""
+        return dict(self._token)
 
     @property
     def logged_in(self) -> bool:
         """True once a live token exists (i.e. a query has succeeded)."""
         oauth = getattr(self._query, "oauth", None)
-        if oauth is None:
-            return False
-        return all(getattr(oauth, field, None) for field in ("access_token", "guid"))
+        if oauth is not None:
+            if all(getattr(oauth, f, None) for f in ("access_token", "guid")):
+                return True
+        return bool(self._token.get("access_token"))
+
+    @property
+    def token_fresh(self) -> bool:
+        """True while the access token is inside Yahoo's ~1h validity window.
+
+        Conservative margin (5 min) so callers refresh before it would
+        actually be rejected.
+        """
+        token_time = self._token.get("token_time") or 0
+        return time.time() - float(token_time) < 3240
 
     def _call(self, method: str, *args: object) -> object:
         """Run one yfpy call, mapping auth failures to LoginRequiredError."""
@@ -99,7 +149,17 @@ class YahooClient:
             raise
         except Exception as exc:  # yahoo-oauth raises requests.* on dead tokens
             message = str(exc) or exc.__class__.__name__
-            if any(word in message.lower() for word in ("token", "oauth", "auth", "401", "403")):
+            lowered = message.lower()
+            # 403 "application is not authorized" is an APP-level ban (Yahoo
+            # disabled the app's fantasy read access), not a dead token — a
+            # re-sign-in won't fix it, so surface it as a distinct error.
+            if "application is not authorized" in lowered:
+                raise YahooError(
+                    "Yahoo has blocked this app's fantasy access (403 "
+                    "'application is not authorized'). Re-signing in won't "
+                    f"help: {message}"
+                ) from exc
+            if any(word in lowered for word in ("token", "oauth", "auth", "401", "403")):
                 raise LoginRequiredError(f"Yahoo token is dead — sign in again: {message}") from exc
             raise YahooError(f"Yahoo call {method} failed: {message}") from exc
 

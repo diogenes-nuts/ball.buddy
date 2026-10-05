@@ -11,7 +11,9 @@ from pathlib import Path
 
 def resolve_data_dir() -> Path:
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent / "data"
+        # One level ABOVE the exe dir: onedir builds wipe the exe's own dir
+        # (pyinstaller -y), which would delete user data sitting inside it.
+        return Path(sys.executable).resolve().parent.parent / "data"
     # ball_buddy/pathing.py -> parents[1] is the repo root (same dir the old
     # shell.py expression produced: shell.py was one level deeper).
     return Path(__file__).resolve().parents[1] / "data"

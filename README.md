@@ -17,16 +17,32 @@ dist\ball.buddy\ball.buddy.exe
 (Developers: create a venv, install the pins from `pyproject.toml`, then run
 `python -m ball_buddy.main` — see `AGENTS.md` for exact commands.)
 
-All app data lives in `data/` next to the exe: settings, your Yahoo login
-tokens, the imported player pool, the last league snapshot, keepers, and
-entered draft picks. Delete the folder to start completely fresh.
+All app data lives in `data/` one level above the app folder (next to the
+`ball.buddy` folder, e.g. `dist\data`): settings, your Yahoo login tokens,
+the imported player pool, the last league snapshot, keepers, and entered
+draft picks. Deleting the app folder never touches your data; delete `data/`
+to start completely fresh.
 
 ## First run (5 minutes)
 
-1. **League → Settings** — enter your Yahoo consumer key + secret (create a
-   free app at https://developer.yahoo.com/apps/) and your league id (the
-   number in your Yahoo league URL, `.../nba/default/league/<id>`). Save.
+1. **League → Settings** — enter your Yahoo **client id** (the long
+   "Client ID (Consumer Key)" string; create a free app at
+   https://developer.yahoo.com/apps/) and your league id (the number in your
+   Yahoo league URL, `.../nba/default/league/<id>`). Save.
+   **Secret:** if the app was created as a **Public** client ("OAuth Client
+   type: Public" — the new console's default), there is no secret — leave the
+   secret field **empty** (the app signs in with PKCE). Confidential clients
+   paste their client secret in.
+   **One-time setup:** in the Yahoo developer app, set the callback URI to
+   `https://localhost:8480/callback` (your app → Yahoo settings; https is
+   required).
 2. **Sign in to Yahoo** — a browser window opens; complete the sign-in.
+   If a **"Your connection is not private"** page appears, that's expected —
+   the callback is served by this app on your own machine: click
+   **Advanced → Proceed to localhost (unsafe)**. The app captures the code
+   automatically afterwards. If the browser tab shows an error instead,
+   click **Enter code manually** in the dialog and paste the URL from the
+   browser's address bar (or just the code).
 3. **Sync now** — your 12 teams, managers, draft order, and schedule appear.
    Before the draft the live order/schedule may be empty: that's normal. Use
    the up/down buttons in the Draft order pane + **Save order** to set a

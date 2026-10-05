@@ -7,9 +7,10 @@ headless :class:`SyncService`. All colors come from existing theme tokens
 
 from __future__ import annotations
 
+import time
 from datetime import datetime
 
-from PySide6.QtCore import QObject, Qt, QThread, Signal
+from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -139,6 +140,7 @@ class LeagueView(QWidget):
         self.last_report = None
         self._thread: QThread | None = None
         self._worker: SyncWorker | None = None
+        self._sync_pending: object = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -476,27 +478,20 @@ class LeagueView(QWidget):
     # -- actions -----------------------------------------------------------------
 
     def _sign_in(self) -> None:
-        """Fresh 3-legged OAuth (browser); the next sync picks up the token."""
-        self.status_banner.setText(
-            "Opening Yahoo sign-in; complete the browser flow, then press Sync now."
-        )
-        try:
-            self.service._client = None  # force re-construction without saved token
-            settings = self.service.settings()
-            settings.pop("_tokens", None)
-            from ball_buddy.io.yahoo import auth
-            from ball_buddy.io.yahoo.client import LoginRequiredError, YahooClient
+        """In-app OAuth: browser + local callback capture; the next sync
+        picks up the saved token."""
+        from ball_buddy.io.yahoo.client import LoginRequiredError
 
-            try:
-                client = YahooClient.from_settings(
-                    settings, auth.load_tokens(self.service.data_dir)
-                )
-            except LoginRequiredError as exc:
-                self._set_banner(self.status_banner, "banner", str(exc))
-                return
-            self.service._client = client
-        except Exception as exc:
-            self._set_banner(self.status_banner, "banner", f"Sign-in failed: {exc}")
+        try:
+            self.service.sign_in_ready()
+        except LoginRequiredError as exc:
+            self._set_banner(self.status_banner, "banner", str(exc))
+            return
+        SignInDialog(self.service, self).exec()
+        # Re-derive banners/button state from whatever the dialog accomplished.
+        self.apply_result(self.service.load_last())
+
+
 
     def _sync_now(self) -> None:
         self.sync_button.setEnabled(False)
@@ -505,17 +500,26 @@ class LeagueView(QWidget):
         self._worker = SyncWorker(self.service)
         self._thread = QThread(self)
         self._worker.moveToThread(self._thread)
-        self._worker.finished.connect(self._on_sync_done)
+        # Result is stored on the main thread first, then the thread is quit;
+        # thread.finished (emitted once the loop really stopped) drives the
+        # UI update — waiting inside the finished slot deadlocks: the queued
+        # slot blocks the main loop, so the thread's quit() never runs.
+        self._worker.finished.connect(self._store_sync_result)
         self._worker.finished.connect(self._thread.quit)
+        self._thread.finished.connect(self._on_sync_thread_done)
         self._thread.started.connect(self._worker.start_sync)
         self._thread.start()
 
-    def _on_sync_done(self, result: object) -> None:
+    def _store_sync_result(self, result: object) -> None:
+        self._sync_pending = result
+
+    def _on_sync_thread_done(self) -> None:
         self.sync_button.setEnabled(True)
         self.import_button.setEnabled(True)
-        self._thread.wait()
         self._thread = None
         self._worker = None
+        result = self._sync_pending
+        self._sync_pending = None
         if not isinstance(result, SyncResult):
             result = SyncResult(error="bad result")
         self.apply_result(result)
@@ -538,3 +542,234 @@ class LeagueView(QWidget):
 
 
 __all__ = ["LeagueView", "SyncWorker"]
+class _SignInExchangeWorker(QObject):
+    """Exchange the captured code off the UI thread (one network call)."""
+
+    finished = Signal(object, object)  # (tokens|None, error|None)
+
+    def __init__(
+        self,
+        code: str,
+        callback: str,
+        key: str,
+        secret: str,
+        code_verifier: str | None = None,
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._code = code
+        self._callback = callback
+        self._key = key
+        self._secret = secret
+        self._code_verifier = code_verifier
+
+    def run(self) -> None:
+        from ball_buddy.io.yahoo import oauth
+
+        try:
+            self.finished.emit(
+                oauth.complete_exchange(
+                    self._code,
+                    self._callback,
+                    self._key,
+                    self._secret,
+                    self._code_verifier,
+                ),
+                None,
+            )
+        except oauth.OAuthError as exc:
+            self.finished.emit(None, str(exc))
+        except Exception as exc:  # network-level failures
+            self.finished.emit(None, f"Exchange failed: {exc}")
+
+
+class SignInDialog(QDialog):
+    """Guided Yahoo sign-in: local callback capture + manual paste fallback.
+
+    Phase 1: browser opens; a local server on 127.0.0.1:8480/callback waits
+    for Yahoo's redirect and captures the code automatically.
+    Phase 2 (fallback): if the redirect never arrives (callback URI not
+    registered in the Yahoo developer app, or the browser tab was blocked),
+    a paste field accepts the URL the browser shows (or just the code).
+    """
+
+    def __init__(self, service: SyncService, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.service = service
+        self._server = None
+        self._callback = ""
+        self._key = ""
+        self._secret = ""
+        self._thread: QThread | None = None
+        self._worker: _SignInExchangeWorker | None = None
+        self._pending: tuple[object, object] | None = None
+        self._deadline = 0.0
+        self.setWindowTitle("Sign in to Yahoo")
+        self.setMinimumWidth(480)
+
+        root = QVBoxLayout(self)
+        root.setSpacing(8)
+        self.status_label = QLabel("")
+        self.status_label.setObjectName("secondary")
+        self.status_label.setWordWrap(True)
+        root.addWidget(self.status_label)
+
+        self.paste_widget = QWidget()
+        paste_root = QVBoxLayout(self.paste_widget)
+        paste_root.setContentsMargins(0, 0, 0, 0)
+        paste_note = QLabel(
+            "Paste the full URL from the browser's address bar (or just the "
+            "code) shown after signing in at Yahoo:"
+        )
+        paste_note.setObjectName("secondary")
+        paste_note.setWordWrap(True)
+        self.paste_edit = QLineEdit()
+        self.paste_edit.setPlaceholderText(
+            "http://127.0.0.1:8480/callback?code=..."
+        )
+        self.paste_button = QPushButton("Paste and continue")
+        self.paste_button.setProperty("ink", "true")
+        paste_root.addWidget(paste_note)
+        paste_root.addWidget(self.paste_edit)
+        paste_root.addWidget(self.paste_button, 0, Qt.AlignmentFlag.AlignRight)
+        self.paste_widget.setVisible(False)
+        root.addWidget(self.paste_widget)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok
+        )
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Enter code manually…")
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setAutoDefault(False)
+        buttons.accepted.connect(self._show_paste)
+        buttons.rejected.connect(self._cancel)
+        root.addWidget(buttons)
+        self._ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
+
+        self._timer = QTimer(self)
+        self._timer.setInterval(500)
+        self._timer.timeout.connect(self._poll)
+
+        from ball_buddy.io.yahoo import oauth
+
+        try:
+            self._key, self._secret = service.sign_in_ready()
+            self._server, _ = oauth.begin_sign_in(
+                service.data_dir, self._key, self._secret
+            )
+        except Exception as exc:  # bad creds or port in use
+            # Surface in the dialog, not a blocking modal (the dialog is not
+            # even exec'd yet when __init__ runs); user can still Cancel.
+            self.status_label.setText(f"Sign-in setup failed: {exc}")
+            return
+        self._callback = self._server.callback_uri
+        self._deadline = time.monotonic() + oauth.CAPTURE_TIMEOUT_SECONDS
+        https = self._callback.startswith("https")
+        https_note = (
+            "If a \"connection isn't private\" page appears, that is expected "
+            "(the callback is served by this app on your own machine): "
+            "Advanced → Proceed to localhost (unsafe).\n\n"
+            if https
+            else ""
+        )
+        self.status_label.setText(
+            f"A browser window opened. Complete the Yahoo sign-in there and the "
+            f"code is captured automatically (callback {self._callback}).\n\n"
+            + https_note
+            + "One-time setup: register that callback URI in your Yahoo developer "
+            "app (https://developer.yahoo.com/apps/ -> your app -> Yahoo "
+            "settings). If the browser tab shows an error instead, use 'Enter "
+            "code manually' and paste the URL it shows."
+        )
+        self.paste_edit.returnPressed.connect(self._paste_and_go)
+        self.paste_button.clicked.connect(self._paste_and_go)
+
+        self._timer.start()
+
+    # -- phases ------------------------------------------------------------
+
+    def _poll(self) -> None:
+        assert self._server is not None
+        try:
+            code = self._server.wait(timeout=0)
+        except Exception as exc:  # OAuthError: redirect carried an error
+            self._fail(str(exc))
+            return
+        if code is not None:
+            self._exchange(code, self._callback)
+        elif time.monotonic() > self._deadline:
+            self._timer.stop()
+            self._show_paste()
+
+    def _show_paste(self) -> None:
+        self._timer.stop()
+        self.paste_widget.setVisible(True)
+        self.paste_edit.setFocus()
+        self.status_label.setText(
+            "No automatic code captured. Paste the URL the browser shows "
+            "(or just the code) and continue."
+        )
+        self._ok_button.setEnabled(False)
+
+    def _paste_and_go(self) -> None:
+        from ball_buddy.io.yahoo import oauth
+
+        try:
+            code, callback = oauth.parse_paste(self.paste_edit.text())
+        except oauth.OAuthError as exc:
+            self.status_label.setText(str(exc))
+            return
+        self._exchange(code, callback)
+
+    def _exchange(self, code: str, callback: str) -> None:
+        self._timer.stop()
+        self.paste_widget.setVisible(False)
+        self._ok_button.setEnabled(False)
+        self.status_label.setText("Exchanging code for tokens…")
+        self._pending = None
+        self._worker = _SignInExchangeWorker(
+            code, callback, self._key, self._secret, self._server.code_verifier
+        )
+        self._thread = QThread(self)
+        self._worker.moveToThread(self._thread)
+        # Result is stored on the main thread first, then the thread is quit;
+        # thread.finished (emitted once the loop really stopped) drives the
+        # UI update — waiting inside a queued slot would deadlock on the quit.
+        self._worker.finished.connect(self._store_result)
+        self._worker.finished.connect(self._thread.quit)
+        self._thread.finished.connect(self._on_thread_done)
+        self._thread.started.connect(self._worker.run)
+        self._thread.start()
+
+    def _store_result(self, tokens: object, error: object) -> None:
+        self._pending = (tokens, error)
+
+    def _on_thread_done(self) -> None:
+        self._thread = None
+        self._worker = None
+        tokens, error = self._pending or (None, "token exchange failed")
+        self._pending = None
+        if tokens is None:
+            self._fail(str(error))
+            return
+        self.service.save_sign_in(tokens)
+        self.accept()
+
+    def _fail(self, message: str) -> None:
+        self._timer.stop()
+        self.status_label.setText(f"Sign-in failed: {message}")
+        self._ok_button.setEnabled(True)
+
+    def _cancel(self) -> None:
+        self._timer.stop()
+        if self._server is not None:
+            self._server.stop()
+        self.reject()
+
+    def closeEvent(self, event) -> None:  # pragma: no cover - teardown
+        self._timer.stop()
+        if self._thread is not None and self._thread.isRunning():
+            self._thread.quit()
+            self._thread.wait(2000)
+        if self._server is not None:
+            self._server.stop()
+        super().closeEvent(event)

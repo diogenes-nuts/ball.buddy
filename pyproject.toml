@@ -10,6 +10,9 @@ dependencies = [
     "PySide6==6.11.2",
     # yfpy: the real Yahoo Fantasy API wrapper (yffapi/pyffl do not exist on PyPI).
     "yfpy==17.0.0",
+    # https loopback sign-in callback (Yahoo's console requires https URIs):
+    # self-signed cert for https://localhost:8480, generated once per install.
+    "cryptography==50.0.2",
 ]
 
 [dependency-groups]

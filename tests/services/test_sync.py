@@ -78,7 +78,48 @@ def test_no_credentials_needs_login(tmp_path):
     result = service.run()
     assert result.ok is False
     assert result.needs_login is True
-    assert "consumer key" in result.error
+    assert "sign in" in result.error.lower()
+
+
+def test_stale_token_is_refreshed_before_client_build(tmp_path, monkeypatch):
+    import ball_buddy.services.sync as sync_mod
+    from ball_buddy.io.yahoo import auth as yahoo_auth
+    from ball_buddy.io.yahoo import oauth as yahoo_oauth
+
+    old = {
+        "access_token": "tok",
+        "guid": "987654321",
+        "refresh_token": "ref",
+        "token_time": 1.0,  # very stale
+        "token_type": "bearer",
+        "consumer_key": "k",
+        "consumer_secret": "s",
+    }
+    yahoo_auth.save_tokens(tmp_path, old)
+    service = SyncService(tmp_path, client=None)
+    service.save_settings({"league_id": "847", "consumer_key": "k", "consumer_secret": "s"})
+
+    fresh_payload = {"access_token": "tok", "refresh_token": "ref2", "token_type": "bearer"}
+    monkeypatch.setattr(
+        yahoo_oauth, "extract_guid", lambda token: "987654321"
+    )
+    monkeypatch.setattr(
+        yahoo_oauth, "refresh_access_token", lambda rt, key, secret: fresh_payload
+    )
+
+    def fake_from_tokens(cls, settings, tokens):
+        captured["tokens"] = tokens
+        service._client = object()  # skip real yfpy construction
+        return service._client
+
+    captured = {}
+    monkeypatch.setattr(sync_mod.YahooClient, "from_tokens", classmethod(fake_from_tokens))
+    client = service._build_client()
+    assert client is service._client
+    assert captured["tokens"]["refresh_token"] == "ref2"
+    saved = yahoo_auth.load_tokens(tmp_path)
+    assert saved["refresh_token"] == "ref2"
+    assert saved["token_time"] > 1.0
 
 
 def test_token_expiry_needs_login(tmp_path):

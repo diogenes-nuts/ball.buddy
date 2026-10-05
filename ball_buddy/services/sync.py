@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -90,15 +91,64 @@ class SyncService:
             return {}
         return raw if isinstance(raw, dict) else {}
 
+    # -- sign-in / token management --------------------------------------------
+
+    def _client_from_tokens(self, settings: dict, tokens: dict) -> YahooClient:
+        self._client = YahooClient.from_tokens(settings, tokens)
+        return self._client
+
+    def _live_tokens(self) -> dict | None:
+        """Saved token dict, refreshed when the access token is stale.
+
+        We do the refresh here (never via yahoo_oauth's internal path, which
+        would use the 'oob' callback). Returns None when not signed in.
+        """
+        tokens = auth.load_tokens(self.data_dir)
+        if not tokens or not tokens.get("access_token"):
+            return None
+        if time.time() - float(tokens.get("token_time") or 0) < 3240:
+            return tokens
+        from ball_buddy.io.yahoo import oauth
+
+        settings = self.settings()
+        payload = oauth.refresh_access_token(
+            tokens["refresh_token"],
+            settings.get("consumer_key", ""),
+            settings.get("consumer_secret", ""),
+        )
+        fresh = oauth.new_token_dict(payload, tokens["consumer_key"], tokens["consumer_secret"])
+        auth.save_tokens(self.data_dir, fresh)
+        return fresh
+
+    def sign_in_ready(self) -> tuple[str, str]:
+        """Consumer key/secret for the sign-in dialog; LoginRequiredError if unset.
+
+        The secret is optional: public clients (Yahoo console "OAuth Client
+        type: Public") have no secret and sign in with PKCE instead.
+        """
+        settings = self.settings()
+        key = settings.get("consumer_key", "")
+        secret = settings.get("consumer_secret", "")
+        if not key:
+            raise LoginRequiredError(
+                "Set the consumer key in League -> Settings first."
+            )
+        return key, secret
+
+    def save_sign_in(self, tokens: dict) -> None:
+        """Persist a fresh token dict and drop any stale client."""
+        auth.save_tokens(self.data_dir, tokens)
+        self._client = None  # next sync builds a client from the fresh token
+
     # -- sync ----------------------------------------------------------------
 
     def _build_client(self) -> YahooClient:
         if self._client is not None:
             return self._client
-        tokens = auth.load_tokens(self.data_dir)
-        settings = self.settings()
-        self._client = YahooClient.from_settings(settings, tokens)
-        return self._client
+        tokens = self._live_tokens()
+        if tokens is None:
+            raise LoginRequiredError("Sign in to Yahoo first (League -> Sign in).")
+        return self._client_from_tokens(self.settings(), tokens)
 
     def run(self) -> SyncResult:
         """Full sync: fetch all sections, save snapshot, bridge names.

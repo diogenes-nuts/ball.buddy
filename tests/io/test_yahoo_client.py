@@ -125,6 +125,22 @@ def test_token_expiry_maps_to_login_required():
         client.fetch_all()
 
 
+def test_403_app_ban_maps_to_yahoo_error_not_relogin():
+    """'application is not authorized' (403) is an APP-level ban, not a dead
+    token — it must NOT prompt a re-sign-in (which would loop), so it maps to
+    a distinct YahooError. Regression for the Yahoo legacy-app read-access
+    removal (yfpy issue #84)."""
+    client = make_client(
+        fail_method="get_league_teams",
+        fail_exc=RuntimeError(
+            "Attempt to retrieve data at URL ... failed with error: "
+            "'This application is not authorized to perform this action.'"
+        ),
+    )
+    with pytest.raises(YahooError, match="blocked this app's fantasy access"):
+        client.fetch_all()
+
+
 def test_auth_sysexit_maps_to_login_required():
     query = FakeQuery()
 
@@ -143,9 +159,106 @@ def test_non_auth_error_maps_to_yahoo_error():
         client.fetch_all()
 
 
-def test_from_settings_missing_credentials():
+def _token_dict() -> dict:
+    return {
+        "access_token": "tok",
+        "guid": "987654321",
+        "refresh_token": "ref",
+        "token_time": 1.0,
+        "token_type": "bearer",
+        "consumer_key": "k123",
+        "consumer_secret": "s456",
+    }
+
+
+def test_from_tokens_missing_credentials():
     with pytest.raises(LoginRequiredError, match="consumer key"):
-        YahooClient.from_settings({"league_id": "1"}, None)
+        YahooClient.from_tokens({"league_id": "1"}, {})
+
+
+def test_from_tokens_requires_access_token():
+    with pytest.raises(LoginRequiredError, match="Sign in"):
+        YahooClient.from_tokens(
+            {"league_id": "847", "consumer_key": "k", "consumer_secret": "s"},
+            _token_dict() | {"access_token": None},
+        )
+
+
+def test_from_tokens_passes_credentials_to_yfpy(monkeypatch):
+    """Regression: key/secret must reach YahooFantasySportsQuery (yahoo_consumer_* names).
+
+    Real yfpy exits silently (sys.exit(1)) when they're missing — without this
+    the sign-in failure was indistinguishable from "invalid credentials".
+    """
+    import yfpy.query as yfpy_query
+
+    captured = {}
+
+    def fake_query(**kwargs):
+        captured.update(kwargs)
+        return object()  # any truthy query = construction succeeded
+
+    monkeypatch.setattr(yfpy_query, "YahooFantasySportsQuery", fake_query)
+    client = YahooClient.from_tokens({"league_id": "847"}, _token_dict())
+    assert captured["yahoo_consumer_key"] == "k123"
+    assert captured["yahoo_consumer_secret"] == "s456"
+    assert captured["league_id"] == "847"
+    assert captured["game_code"] == "nba"
+    assert client._query is not None
+
+
+def test_from_tokens_public_client_empty_secret(monkeypatch):
+    """Public client: no secret anywhere. yfpy gets the "public" placeholder
+    (it sys.exit(1)s on empty), but the client + persisted token keep "" so
+    later token requests take the public-client path (body client_id, PKCE)."""
+    import yfpy.query as yfpy_query
+
+    captured = {}
+
+    def fake_query(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(yfpy_query, "YahooFantasySportsQuery", fake_query)
+    client = YahooClient.from_tokens(
+        {"league_id": "847", "consumer_key": "pk"}, _token_dict() | {"consumer_secret": ""}
+    )
+    assert captured["yahoo_consumer_secret"] == "public"
+    assert client._consumer_secret == ""
+    assert client.token["consumer_secret"] == ""
+
+
+def test_from_tokens_public_client_persists_empty_secret(monkeypatch, tmp_path: Path):
+    """persist_token must store the REAL (empty) secret, not the placeholder."""
+    import yfpy.query as yfpy_query
+
+    def fake_query(**kwargs):
+        return object()
+
+    monkeypatch.setattr(yfpy_query, "YahooFantasySportsQuery", fake_query)
+    client = YahooClient.from_tokens(
+        {"league_id": "847", "consumer_key": "pk"}, _token_dict() | {"consumer_secret": ""}
+    )
+    client._query = make_client()._query  # a FakeQuery with a full oauth object
+    client.persist_token(tmp_path)
+    tokens = auth.load_tokens(tmp_path)
+    assert tokens is not None
+    assert tokens["consumer_secret"] == ""
+
+
+def test_from_tokens_survives_yfpy_exit(monkeypatch):
+    """yfpy sys.exit(1) mid-construction must map to LoginRequiredError, not UnboundLocalError."""
+    import yfpy.query as yfpy_query
+
+    def fake_query(**kwargs):
+        raise SystemExit(1)
+
+    monkeypatch.setattr(yfpy_query, "YahooFantasySportsQuery", fake_query)
+    with pytest.raises(LoginRequiredError, match="not completed"):
+        YahooClient.from_tokens(
+            {"league_id": "847", "consumer_key": "k", "consumer_secret": "s"},
+            _token_dict(),
+        )
 
 
 def test_persist_token(tmp_path: Path):

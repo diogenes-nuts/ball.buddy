@@ -10,10 +10,10 @@ _Build, test, and run commands + environment notes. Brief; no function/structure
 
 ```
 python -m venv .venv
-.venv\Scripts\pip install PySide6 yfpy pytest ruff pyinstaller
+.venv\Scripts\pip install PySide6 yfpy cryptography pytest ruff pyinstaller
 ```
 
-Pins per `pyproject.toml` (PySide6 6.11.2, yfpy 17.0.0, pytest 9.1.1, ruff 0.16.10, pyinstaller 6.22.3 — newest Py-3.14-resolvable releases, exact pins of those; no editable install).
+Pins per `pyproject.toml` (PySide6 6.11.2, yfpy 17.0.0, cryptography 50.0.2, pytest 9.1.1, ruff 0.16.10, pyinstaller 6.22.3 — newest Py-3.14-resolvable releases, exact pins of those; no editable install).
 
 ### Run
 

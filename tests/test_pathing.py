@@ -15,8 +15,10 @@ def test_default_returns_repo_data_dir() -> None:
     assert resolve_data_dir() == expected
 
 
-def test_frozen_returns_data_next_to_exe(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_frozen_returns_data_above_exe_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # data/ lives above the exe's own dir (dist/ball.buddy -> dist/data) so a
+    # pyinstaller -y rebuild of the onedir output cannot wipe user data.
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "executable", str(tmp_path / "ball.buddy.exe"))
-    assert resolve_data_dir() == tmp_path / "data"
+    assert resolve_data_dir() == tmp_path.parent / "data"
 
