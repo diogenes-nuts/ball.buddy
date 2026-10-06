@@ -21,9 +21,4 @@ User decisions (2026-10-08):
   keeper grid as the manual-entry surface. Draft-order + team-name edits live there too.
 - Migration into the season engine: deferred (assume auth eventually comes).
 
-### P3 — Relative panel
-Per 9 categories: my team projection vs league distribution (all teams from picks so
-far), with BUILD / COAST / PUNT tags. Live as picks are entered. (Tag thresholds
-defined by planner from the league-relative distribution, e.g. percentile-based.)
-
 Verification per phase: pytest + ruff green; offscreen UI tests where the app has them.

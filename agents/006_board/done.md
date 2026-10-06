@@ -60,3 +60,10 @@ doesn't); bias cancellation (uniform shift of a stat column keeps ordering); opt
 keeper still eligible; my_team unset → M2.3 fallback. Exclusions unchanged.
 Bench/starter: all secured players count.
 - Review pass: fill clamped to [0,1] both directions; 'value 0' vs 'no pool value' reason distinction; pre-draft pct-dilution limitation documented. Verify: 309 passed / 1 skipped, ruff clean.
+
+## 2026-10-06 — P3 — Draft v2 P3: relative panel — per-category my-team-vs-league with BUILD/COAST/PUNT tags (top-3 BUILD; bottom-3 PUNT when best remaining undrafted fill closes <25% of the normalized gap; else COAST), live per pick
+### P3 — Relative panel
+Per 9 categories: my team projection vs league distribution (all teams from picks so
+far), with BUILD / COAST / PUNT tags. Live as picks are entered. (Tag thresholds
+defined by planner from the league-relative distribution, e.g. percentile-based.)
+- Impl: domain/relative.py category_tags (top_n=3 / bottom_n=3 / punt_close=0.25, 'to' direction handled, pre-draw COAST fallback, no-my-team → hidden); P2 helpers promoted public (category_gaps / cat_fill); board panel wired to the same refresh as the suggest panel. Verify: 321 passed / 1 skipped, ruff clean; review PASS, zero defects.
