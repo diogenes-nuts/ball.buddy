@@ -332,7 +332,7 @@ def complete_exchange(
     payload = exchange_code(
         code, callback_uri, consumer_key, consumer_secret, code_verifier
     )
-    return new_token_dict(payload, consumer_key, consumer_secret)
+    return new_token_dict(payload, consumer_key, consumer_secret, callback_uri)
 
 
 def exchange_code(
@@ -357,14 +357,23 @@ def exchange_code(
 
 
 def refresh_access_token(
-    refresh_token: str, consumer_key: str, consumer_secret: str
+    refresh_token: str,
+    consumer_key: str,
+    consumer_secret: str,
+    callback_uri: str = HTTPS_CALLBACK_URI,
 ) -> dict:
-    """refresh_token -> raw token payload (token_time is set by caller)."""
+    """refresh_token -> raw token payload (token_time is set by caller).
+
+    ``callback_uri`` must be the EXACT redirect_uri the authorization code
+    was granted with (OAuth2 4124 section 6); Yahoo answers
+    ``invalid_grant`` / "invalid refresh token" for any other value, so the
+    caller passes back the URI stored at sign-in, not a hardcoded default.
+    """
     return _token_request(
         {
             "refresh_token": refresh_token,
             "grant_type": "refresh_token",
-            "redirect_uri": "https://www.yahoo.com",
+            "redirect_uri": callback_uri,
         },
         consumer_key,
         consumer_secret,
@@ -406,7 +415,10 @@ def extract_guid(access_token: str) -> str:
 
 
 def new_token_dict(
-    payload: dict, consumer_key: str, consumer_secret: str
+    payload: dict,
+    consumer_key: str,
+    consumer_secret: str,
+    callback_uri: str = HTTPS_CALLBACK_URI,
 ) -> dict:
     """Map a raw Yahoo token payload onto the persistable token dict.
 
@@ -424,6 +436,10 @@ def new_token_dict(
         "access_token": access_token,
         "guid": guid,
         "refresh_token": payload.get("refresh_token"),
+        # The refresh grant must replay this exact URI; persist it so a
+        # stale-token refresh (possibly under the http fallback or the
+        # paste path) still matches what Yahoo authorized.
+        "callback_uri": callback_uri,
         "token_time": datetime.now(UTC).timestamp(),
         "token_type": payload.get("token_type", "Bearer"),
         "consumer_key": consumer_key,

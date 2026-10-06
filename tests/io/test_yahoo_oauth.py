@@ -107,6 +107,8 @@ def test_new_token_dict_shape():
     assert tokens["consumer_key"] == "k"
     assert tokens["consumer_secret"] == "s"
     assert tokens["token_time"] > time.time() - 5
+    # refresh must replay the exact grant URI; default is the https one
+    assert tokens["callback_uri"] == oauth.HTTPS_CALLBACK_URI
 
 
 def test_new_token_dict_non_jwt_token_guid_best_effort():
@@ -208,6 +210,8 @@ def test_exchange_code_and_complete(monkeypatch):
     assert seen["redirect_uri"] == "http://127.0.0.1:8480/callback"
     assert seen["key"] == "k"
     assert seen["secret"] == "s"
+    # the persisted token must carry the EXACT grant URI (refresh replays it)
+    assert tokens["callback_uri"] == "http://127.0.0.1:8480/callback"
 
 
 def test_exchange_code_public_client_sends_verifier(monkeypatch):
@@ -237,6 +241,10 @@ def test_refresh_access_token_grant(monkeypatch):
     assert result == payload
     assert seen["grant_type"] == "refresh_token"
     assert seen["refresh_token"] == "ref"
+    # OAuth2 4124 s6: refresh must replay the exact grant redirect_uri
+    assert seen["redirect_uri"] == oauth.HTTPS_CALLBACK_URI
+    result = oauth.refresh_access_token("ref", "k", "s", "http://localhost:8480/callback")
+    assert seen["redirect_uri"] == "http://localhost:8480/callback"
 
 
 def test_local_server_captures_code():

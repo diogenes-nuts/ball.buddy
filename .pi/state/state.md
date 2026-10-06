@@ -1,30 +1,32 @@
-# State — ball.buddy: dark mode + flat controls DONE, green (290+1), exe rebuilt, final report pending
-(Rewrite this whole file at every checkpoint. Never append. If a fact
-no longer matters, delete it — git history keeps the trail.)
+# State — ball.buddy: Draft v2 (offline-first draft mode rework, before Oct 15–20 draft)
+(Rewrite this whole file at every checkpoint. Never append.)
 
-"Told" = user has heard this from you in plain words. Reading it in a log
-does not count.
+"Told" = user has heard this from you in plain words.
 
 ## Status
-- User: "Might as well throw in a dark mode. I also want to get rid of the gradient frame around buttons" — DONE. 290 passed + 1 skipped, ruff clean. Exe rebuilt with dark mode (dist/data preserved: moved to /tmp during pyinstaller -y, restored). Tree uncommitted (auto-commit on clean exit; no manual commits).
-- Next: final report to user (was interrupted by rebuild). Report = what's in "What changed" below.
+- Position: refresh-URI bug fixed + exe rebuilt (dist has fix; uncommitted in tree). User re-ran exe: **403 "application is not authorized" — dev-program acceptance did NOT lift the wall** → offline-first is the plan.
+- Draft v2 planning DONE with user (design interview complete, told yes). Plan written to agents/006_board/dev.md: P1 setup dialog (order/names/keepers/my team), P2 need-aware recommender (B + C1), P3 relative panel (BUILD/COAST/PUNT).
+- Exact next step: launch P1 subagent chain (scout → planner → worker → reviewer → worker-fix).
+- In flight: uncommitted tree (oauth.py, sync.py, 2 test files — refresh fix; dev.md rewritten). Refresh fix verified 290 passed + 1 skipped, ruff clean; not yet live-validated (403 blocks full sync).
 
-## What changed (this session, all done + tested)
-- theme.py: palette dicts LIGHT + DARK (from tokens.json) + _style(palette) + apply_theme(app, "light"|"dark"). Flat control fills: ALL border-top-color lines removed (gradient frame gone; states = flat fill shifts). Dark inverts: outline cream, ink_fill cream (active nav + ink buttons + checkboxes = cream fill, dark text).
-- shell.py: "Dark mode" QCheckBox in sidebar footer (self.theme_toggle test seam); toggle -> apply_theme + persist settings["dark_mode"]; __init__ order FIXED: _build_stack() now runs BEFORE _build_sidebar() (layout order preserved, toggle needs sync_service).
-- main.py: theme applied from persisted settings AFTER MainWindow construction, before show() (no light flash on dark install).
-- Tests: test_shell.py +2 (toggle applies+persists with monkeypatched resolve_data_dir->tmp_path; both palettes build valid styles). 290+1.
-- Docs: agents/scaffold/status.md (theme line, shell footer line, "Not yet" = only box-shadow fidelity + bundled fonts left); AGENTS.md env line (light+dark, flat fills).
+## Findings (design decisions, all told yes)
+- Mine-only: other teams analyzed under the hood only to surface my relative strengths/weaknesses (compete vs punt).
+- Recommender = B (need-aware vs league-relative gaps, same pool → bias cancels) + C1 (observed pos scarcity = facts). NO C2 (11-manager demand sim: compounding errors; observation outpaces prediction window). NO timer/lock-in (Yahoo has built-in timer + autopick; user: "if I ever timeout, I've failed").
+- Draft-time team projection = sum of ALL secured players (picks + active keepers); NO starter/bench distinction (only matters in-season, >10 playing in a day).
+- Keepers: manual via setup dialog unless Yahoo auth lands first. Migration to season engine deferred (assume auth eventually comes).
+- Draft: Oct 15–20, 2026; ~1 week to build.
+- 403 wall: persists even after dev-program acceptance. Told yes.
 
-## Prior session (committed? no — c198f43 predates cream reconciliation; tree had cream-UI changes + now dark mode, all uncommitted until auto-commit)
-- Cream-UI reconciliation: status-colored banners (banner-info/success/danger), _status.py set_status, display-face titles (Trebuchet degrade), sidebar footer name+version, ink active-nav, input/checkbox styling, 28px rows, numeric right-align. Docs done.
+## Verification
+- Baseline: 3c51674 (pushed) + uncommitted refresh fix: 290 passed + 1 skipped, ruff clean.
+- Live: sign-in/code exchange work; league fetch 403. Told yes.
 
-## Env gotchas
-- Windows bash: forward slashes. edit() atomic — failed call applies NOTHING (QCheckBox import loss this session: 2nd edit of a 2-edit call failed, 1st applied? NO — whole call failed; had to re-add import separately). Non-ASCII (em dash) oldText fails -> sed/python heredoc.
-- pyinstaller -y wipes dist/ — ALWAYS mv dist/data /tmp/bbdata first, restore after. Check tasklist for running exe first.
-- PySide6 6.11: QTableWidgetItem.setTextAlignment accepts OR'd flags (int() wrapper = deprecation warning).
+## Env gotchas (carry forward)
+- Windows bash here: forward slashes (./.venv/Scripts/python); pyinstaller args also need forward slashes (ball_buddy\main.py mangled to ball_buddymain.py).
+- edit() call atomic; non-ASCII oldText (em dash) fails.
+- pyinstaller -y wipes dist/ — mv dist/data aside first.
 - Stack: Py 3.14.7, PySide6 6.11.2, yfpy 17.0.0, cryptography 50.0.2, pytest 9.1.1, ruff 0.16.10, pyinstaller 6.22.3.
-- League facts: 14 teams; 24 keepers; FAAB $100; top-4 playoffs; pure 9-cat. Yahoo reactivation pending.
+- Local inference: sequential subagent chains only.
 
-## Goal (latest user message, verbatim)
-Might as well throw in a dark mode. I also want to get rid of the gradient frame around buttons
+## Dead ends
+- Yahoo app authorization: re-sign-in/PKCE/scope (pre-acceptance) AND dev-program acceptance (2026-10-08) — all 403. Don't retry auth as a plan dependency; assume offline. Told yes.

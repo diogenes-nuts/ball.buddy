@@ -90,6 +90,7 @@ def test_stale_token_is_refreshed_before_client_build(tmp_path, monkeypatch):
         "access_token": "tok",
         "guid": "987654321",
         "refresh_token": "ref",
+        "callback_uri": "https://localhost:8480/callback",
         "token_time": 1.0,  # very stale
         "token_type": "bearer",
         "consumer_key": "k",
@@ -104,7 +105,11 @@ def test_stale_token_is_refreshed_before_client_build(tmp_path, monkeypatch):
         yahoo_oauth, "extract_guid", lambda token: "987654321"
     )
     monkeypatch.setattr(
-        yahoo_oauth, "refresh_access_token", lambda rt, key, secret: fresh_payload
+        yahoo_oauth,
+        "refresh_access_token",
+        lambda rt, key, secret, callback_uri: fresh_payload
+        if callback_uri == old["callback_uri"]
+        else (_ for _ in ()).throw(AssertionError("wrong callback_uri")),
     )
 
     def fake_from_tokens(cls, settings, tokens):
@@ -120,6 +125,7 @@ def test_stale_token_is_refreshed_before_client_build(tmp_path, monkeypatch):
     saved = yahoo_auth.load_tokens(tmp_path)
     assert saved["refresh_token"] == "ref2"
     assert saved["token_time"] > 1.0
+    assert saved["callback_uri"] == old["callback_uri"]
 
 
 def test_token_expiry_needs_login(tmp_path):

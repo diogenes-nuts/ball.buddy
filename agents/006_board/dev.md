@@ -1,3 +1,43 @@
 # 006_board — dev
 
-(no active plans — M2 complete; see done.md)
+## Plan: Draft v2 (before 2026-10-15..20 draft; ~1 week)
+
+Context: Yahoo 403 persists post-dev-program-acceptance → offline-first; the board is a
+standalone draft-day sidecar (Yahoo's live draft room runs mechanics + timer + autopick).
+User decisions (2026-10-08):
+
+- Mine-only analysis: other teams are analyzed under the hood solely to surface my team's
+  RELATIVE strengths/weaknesses (is a strength strong enough to compete; is a weakness
+  too weak to salvage → punt).
+- Recommender = B (need-aware vs league-relative gaps) + C1 (observed position scarcity
+  from picks made so far — facts, not prediction). No C2 demand simulation (compounding
+  errors across 11 managers; observation accumulates faster than the window where
+  prediction would help). No timer/lock-in (Yahoo client has built-in timer + autopick;
+  duplication is scope waste).
+- Team projection during draft: ALL secured players count as active (draft picks +
+  active keepers). No starter/bench distinction — it only matters in-season once >10
+  players are playing on a day.
+- Keepers: manual entry until/if Yahoo auth lands; setup dialog replaces the 24-row
+  keeper grid as the manual-entry surface. Draft-order + team-name edits live there too.
+- Migration into the season engine: deferred (assume auth eventually comes).
+
+### P1 — Setup dialog
+One button on the board → dialog editing: draft order (up/down or drag), team names,
+keepers per team (player via pool lookup, cost round 1–13, opt-out), and which team is
+MINE. Replaces the offline team list (settings["manual_teams"]) + keeper grid as the
+manual-entry surface; persists to the same stores (settings, keepers.json) so the board
+keeps working unchanged. Old surfaces: keeper grid demoted/removed per scout findings.
+
+### P2 — Need-aware recommender (B + C1)
+Score each candidate for MY current pick: (a) pool value, (b) league-relative category
+need of my team (my projection vs median team, same pool → systematic bias cancels),
+(c) C1 positional scarcity (remaining count/value brackets per pos). Exclusions
+unchanged (drafted, active keepers; opted-out keepers draftable). Bench/starter: all
+secured players count.
+
+### P3 — Relative panel
+Per 9 categories: my team projection vs league distribution (all teams from picks so
+far), with BUILD / COAST / PUNT tags. Live as picks are entered. (Tag thresholds
+defined by planner from the league-relative distribution, e.g. percentile-based.)
+
+Verification per phase: pytest + ruff green; offscreen UI tests where the app has them.

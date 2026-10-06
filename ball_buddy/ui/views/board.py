@@ -11,6 +11,7 @@ current-pick cell uses stock Qt selection highlight.
 
 from __future__ import annotations
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCompleter,
@@ -40,6 +41,10 @@ class DraftBoard(QWidget):
     Column *c* of round *r* holds the team at snake position (r, c+1), so
     round 1 reads in start order and each row snakes left-right.
     """
+
+    #: emitted when the user clicks "Setup…" — the host view opens the
+    #: SetupDialog (teams/order/keepers/my-team) and refreshes on accept.
+    setup_requested = Signal()
 
     def __init__(self, service: SyncService, keepers: list[KeeperEntry]) -> None:
         super().__init__()
@@ -98,6 +103,9 @@ class DraftBoard(QWidget):
         self.undo_button = QPushButton("Undo last")
         self.undo_button.clicked.connect(self.undo)
         buttons.addWidget(self.undo_button)
+        self.setup_button = QPushButton("Setup…")
+        self.setup_button.clicked.connect(self.setup_requested.emit)
+        buttons.addWidget(self.setup_button)
         controls.addLayout(buttons)
 
         strip_row = QVBoxLayout()

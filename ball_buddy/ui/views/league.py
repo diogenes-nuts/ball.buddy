@@ -25,7 +25,6 @@ from PySide6.QtWidgets import (
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -85,21 +84,13 @@ class SettingsDialog(QDialog):
         form.addRow("Consumer key:", self.consumer_key_edit)
         form.addRow("Consumer secret:", self.consumer_secret_edit)
         form.addRow(note)
-        self.manual_teams_edit = QTextEdit()
-        self.manual_teams_edit.setPlaceholderText("one team name per line (offline mode)")
-        self.manual_teams_edit.setPlainText(
-            "\n".join(settings.get("manual_teams") or [])
+        teams_note = QLabel(
+            "Team names, draft order, and keepers are edited on the Draft "
+            "page (Setup on the draft board)."
         )
-        self.manual_teams_edit.setFixedHeight(110)
-        manual_note = QLabel(
-            "Offline mode: the league's team names, one per line, used when "
-            "there is no Yahoo snapshot yet (draft board, keepers, and the "
-            "team pickers). Ignored once a real sync exists."
-        )
-        manual_note.setObjectName("secondary")
-        manual_note.setWordWrap(True)
-        form.addRow("Team list (offline):", self.manual_teams_edit)
-        form.addRow(manual_note)
+        teams_note.setObjectName("secondary")
+        teams_note.setWordWrap(True)
+        form.addRow("Teams & draft order:", teams_note)
         self.reset_button = QPushButton("Reset all data…")
         # No "danger" theme token exists; the ink-fill primary style is the
         # strongest available visual weight, so the destructive action reads
@@ -143,11 +134,6 @@ class SettingsDialog(QDialog):
         settings["league_id"] = self.league_id_edit.text().strip()
         settings["consumer_key"] = self.consumer_key_edit.text().strip()
         settings["consumer_secret"] = self.consumer_secret_edit.text().strip()
-        settings["manual_teams"] = [
-            line.strip()
-            for line in self.manual_teams_edit.toPlainText().splitlines()
-            if line.strip()
-        ]
         self.service.save_settings(settings)
         self.accept()
 
@@ -245,7 +231,7 @@ class LeagueView(QWidget):
             self.status_banner,
             "banner",
             "No snapshot yet — the draft board, keepers, and team pickers run "
-            "off the manual team list (League -> Settings -> Team list). "
+            "off the manual team list (Draft -> Setup). "
             "Sign in and sync to get rosters, schedule, and standings.",
         )
         self._set_order_controls()

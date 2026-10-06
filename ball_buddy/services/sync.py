@@ -111,12 +111,19 @@ class SyncService:
         from ball_buddy.io.yahoo import oauth
 
         settings = self.settings()
+
         payload = oauth.refresh_access_token(
             tokens["refresh_token"],
             settings.get("consumer_key", ""),
             settings.get("consumer_secret", ""),
+            tokens.get("callback_uri") or oauth.HTTPS_CALLBACK_URI,
         )
-        fresh = oauth.new_token_dict(payload, tokens["consumer_key"], tokens["consumer_secret"])
+        fresh = oauth.new_token_dict(
+            payload,
+            tokens["consumer_key"],
+            tokens["consumer_secret"],
+            tokens.get("callback_uri") or oauth.HTTPS_CALLBACK_URI,
+        )
         auth.save_tokens(self.data_dir, fresh)
         return fresh
 

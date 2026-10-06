@@ -267,17 +267,6 @@ def test_manual_order_applied_when_no_live_order(qapp, tmp_path):
 # -- offline manual team list -------------------------------------------------
 
 
-def test_settings_dialog_saves_manual_teams(qapp, tmp_path):
-    from ball_buddy.ui.views.league import SettingsDialog
-
-    view = make_view(tmp_path, qapp)
-    dialog = SettingsDialog(view.service, view)
-    dialog.manual_teams_edit.setPlainText("Alpha\n\n  Beta  \n\nGamma")
-    dialog._save()
-    saved = view.service.settings()
-    assert saved["manual_teams"] == ["Alpha", "Beta", "Gamma"]
-
-
 def test_manual_mode_renders_teams_and_order(qapp, tmp_path):
     service = SyncService(tmp_path, client=YahooClient(FakeQuery(), "k", "s"))
     settings = service.settings()
