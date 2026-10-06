@@ -30,7 +30,7 @@ from ball_buddy.domain.keepers import KeeperEntry
 from ball_buddy.domain.league import Pick
 from ball_buddy.domain.naming import bridge
 from ball_buddy.domain.players import PlayerPool
-from ball_buddy.domain.recommend import recommend
+from ball_buddy.domain.recommend import recommend_need_aware
 from ball_buddy.services.sync import SyncService
 from ball_buddy.ui.views import _offline
 
@@ -135,8 +135,10 @@ class DraftBoard(QWidget):
         self.suggest_title = QLabel("Suggested pool players")
         self.suggest_title.setObjectName("title")
         suggest_inner.addWidget(self.suggest_title)
-        self.suggest_grid = QTableWidget(0, 4)
-        self.suggest_grid.setHorizontalHeaderLabels(["Player", "Pos", "Value", "Rank"])
+        self.suggest_grid = QTableWidget(0, 5)
+        self.suggest_grid.setHorizontalHeaderLabels(
+            ["Player", "Pos", "Value", "Rank", "Reason"]
+        )
         self.suggest_grid.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.suggest_grid.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.suggest_grid.verticalHeader().setVisible(False)
@@ -267,7 +269,13 @@ class DraftBoard(QWidget):
         self.grid.selectRow(grid_row)
 
     def _render_suggestions(self, report=None) -> None:
-        """Top-N pool players (rank order) minus drafted/kept, in the panel."""
+        """Need-aware top-N (P2) minus drafted/kept, in the panel.
+
+        Scores my team's pool value, league-relative position need, and C1
+        remaining-pool scarcity via ``recommend_need_aware``; each row's
+        reason string explains its score. Falls back to the M2.3 ranking
+        when no my-team is set.
+        """
         if report is None:
             report = bridge(
                 [pick.player for pick in self.picks],
@@ -283,7 +291,12 @@ class DraftBoard(QWidget):
             self.suggest_title.setText("Suggested pool players — draft complete")
             grid.setRowCount(0)
             return
-        suggestions = recommend(self._pool.rows, self._excluded_names(report))
+        suggestions = recommend_need_aware(
+            self._pool.rows,
+            self._excluded_names(report),
+            self._team_projections(report),
+            my_team=str(self.service.settings().get("my_team", "")),
+        )
         self.suggest_title.setText(f"Suggested pool players (top {len(suggestions)})")
         grid.setRowCount(len(suggestions))
         for r, suggestion in enumerate(suggestions):
@@ -293,9 +306,36 @@ class DraftBoard(QWidget):
                     suggestion.pos,
                     suggestion.value,
                     str(suggestion.rank) if suggestion.rank is not None else "—",
+                    suggestion.reason,
                 ]
             ):
                 grid.setItem(r, c, QTableWidgetItem(text))
+
+    def _team_projections(self, report=None) -> dict[str, list[dict[str, str]]]:
+        """Pool rows per team of its secured players (P2 projections).
+
+        Secured = entered picks (alias-bridged via ``report`` when given)
+        + active keepers; opted-out keepers' players stay in the pool,
+        not the projection. All secured players count — no starter/bench
+        distinction. Teams with no secured players map to an empty list
+        (they still count toward the league median).
+        """
+        secured: dict[str, list[str]] = {team: [] for team in self.start_order}
+        for pick in self.picks:
+            name = (
+                report.matched.get(pick.player, pick.player)
+                if report is not None
+                else pick.player
+            )
+            secured.setdefault(pick.team, []).append(name)
+        for entry in self.keepers:
+            if not entry.opted_out:
+                secured.setdefault(entry.team, []).append(entry.player)
+        projections: dict[str, list[dict[str, str]]] = {}
+        for team, names in secured.items():
+            rows = [row for name in names if (row := self._pool.get(name)) is not None]
+            projections[team] = rows
+        return projections
 
     def _value_of(self, entered_name: str, bridged: str | None) -> str:
         row = self._pool.get(bridged or entered_name)

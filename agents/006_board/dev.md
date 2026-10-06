@@ -21,12 +21,35 @@ User decisions (2026-10-08):
   keeper grid as the manual-entry surface. Draft-order + team-name edits live there too.
 - Migration into the season engine: deferred (assume auth eventually comes).
 
-### P2 — Need-aware recommender (B + C1)
-Score each candidate for MY current pick: (a) pool value, (b) league-relative category
-need of my team (my projection vs median team, same pool → systematic bias cancels),
-(c) C1 positional scarcity (remaining count/value brackets per pos). Exclusions
-unchanged (drafted, active keepers; opted-out keepers draftable). Bench/starter: all
-secured players count.
+### P2 — Need-aware recommender (B + C1) — CATEGORY-LEVEL (spec correction 2026-10-06)
+First pass implemented POSITION-level need (per-pos value totals); wrong level for a
+9-cat H2H game — the compete/punt question is per-category. Rework required.
+
+Team projection: `engine.project_roster(secured_rows, team_name, usage_factor=1.0)`
+(all secured players active; no starter/bench). League median per category = median
+across all teams' `cat_values[cat]`. My gap per cat: `gap_c` = how far I sit BELOW the
+median in category c's better direction (higher for the 8, lower for `to`); positive =
+I'm behind.
+
+Normalization (category units are incomparable — PTS in hundreds, FT% a fraction):
+`spread_c` = max−min of cat c across teams (0 → treat spread as 1). Normalized gap
+g_c = gap_c/spread_c ∈ [0,∞); candidate fill f_c = player_c/spread_c for higher cats,
+f_c = (1 − player_c/spread_c) for `to` (low-TO quality). 
+
+Score per candidate = pool value + need + scarcity, where
+`need = Σ_c min(g_c, f_c)` (gap actually filled, normalized units; [0, 9]) and
+scarcity = max(0, median remaining count across positions − remaining count at the
+candidate's primary position) (C1, unchanged). Weights as named module constants
+(NEED_WEIGHT, SCARCITY_WEIGHT, default 1.0) for draft-day tuning.
+
+Reason string: value bit + the top 2 gap-filling categories by filled amount
+(e.g. "fills ft_pct & pts gaps") + scarcity bit when > 0.
+
+Tests: need-beats-raw-value (candidate filling my weakest cat outranks higher-value
+candidate filling nothing); `to` direction (low-TO player fills my TO gap, high-TO
+doesn't); bias cancellation (uniform shift of a stat column keeps ordering); opted-out
+keeper still eligible; my_team unset → M2.3 fallback. Exclusions unchanged.
+Bench/starter: all secured players count.
 
 ### P3 — Relative panel
 Per 9 categories: my team projection vs league distribution (all teams from picks so
