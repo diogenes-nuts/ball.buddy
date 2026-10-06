@@ -5,7 +5,7 @@ canonical FIELDNAMES stat rows so the engine's category projections
 are exercised for real (gp ~ 60-80, pts_pg 5-30, pct 0.6-0.95)."""
 
 from ball_buddy.domain.recommend import (
-    _cat_fill,
+    cat_fill,
     recommend,
     recommend_need_aware,
 )
@@ -259,10 +259,10 @@ def test_need_aware_zero_value_reason():
 def test_cat_fill_clamped_to_unit_interval():
     # Higher cats: a candidate who beats the league max clamps at 1.0.
     # ``to``: a negative-to candidate clamps at 1.0, a league-worse one at 0.
-    assert _cat_fill("pts", 300.0, 100.0) == 1.0
-    assert _cat_fill("to", -10.0, 100.0) == 1.0
-    assert _cat_fill("to", 150.0, 100.0) == 0.0
-    assert 0.0 <= _cat_fill("fg_pct", 0.0, 0.2) <= 1.0
+    assert cat_fill("pts", 300.0, 100.0) == 1.0
+    assert cat_fill("to", -10.0, 100.0) == 1.0
+    assert cat_fill("to", 150.0, 100.0) == 0.0
+    assert 0.0 <= cat_fill("fg_pct", 0.0, 0.2) <= 1.0
 
 
 def test_need_aware_exclusions_and_top_n():

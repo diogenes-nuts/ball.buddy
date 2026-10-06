@@ -158,7 +158,7 @@ def _fallback(rows: list[dict[str, str]], excluded: set[str], top_n: int) -> lis
     ]
 
 
-def _category_gaps(
+def category_gaps(
     my_projection, all_projections: dict[str, object]
 ) -> tuple[dict[str, float], dict[str, float]]:
     """Per-cat normalized gap and spread across all teams.
@@ -194,7 +194,7 @@ def _category_gaps(
     return gaps, spreads
 
 
-def _cat_fill(cat: str, player_value: float, spread: float) -> float:
+def cat_fill(cat: str, player_value: float, spread: float) -> float:
     """Candidate's normalized fill for one cat, in [0.0, 1.0].
 
     Higher-is-better cats: ``player/spread`` (a candidate who beats the
@@ -245,7 +245,7 @@ def recommend_need_aware(
     projections = {
         team: project_roster(team_rows, team) for team, team_rows in teams.items()
     }
-    gaps, spreads = _category_gaps(projections[my_team], projections)
+    gaps, spreads = category_gaps(projections[my_team], projections)
 
     # C1: remaining (undrafted, unkept) pool count per primary position.
     remaining: dict[str, int] = {}
@@ -270,7 +270,7 @@ def recommend_need_aware(
 
         player = player_cache.setdefault(index, project_player(row))
         filled = {
-            cat: max(0.0, min(gaps[cat], _cat_fill(cat, player.values[cat], spreads[cat])))
+            cat: max(0.0, min(gaps[cat], cat_fill(cat, player.values[cat], spreads[cat])))
             for cat in CATS
         }
         need = sum(filled.values())
@@ -314,4 +314,6 @@ __all__ = [
     "SCARCITY_WEIGHT",
     "recommend",
     "recommend_need_aware",
+    "category_gaps",
+    "cat_fill",
 ]

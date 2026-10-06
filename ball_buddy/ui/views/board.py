@@ -26,13 +26,16 @@ from PySide6.QtWidgets import (
 )
 
 from ball_buddy.domain import picks as picks_mod
+from ball_buddy.domain.engine import PCT_CATS
 from ball_buddy.domain.keepers import KeeperEntry
 from ball_buddy.domain.league import Pick
 from ball_buddy.domain.naming import bridge
 from ball_buddy.domain.players import PlayerPool
 from ball_buddy.domain.recommend import recommend_need_aware
+from ball_buddy.domain.relative import category_tags
 from ball_buddy.services.sync import SyncService
 from ball_buddy.ui.views import _offline
+from ball_buddy.ui.views.matchup import CAT_LABELS
 
 
 class DraftBoard(QWidget):
@@ -148,6 +151,30 @@ class DraftBoard(QWidget):
         self.suggest_grid.setMaximumHeight(140)
         suggest_inner.addWidget(self.suggest_grid, 0)
 
+        # --- relative panel: my team vs the league (P3) ---------------------
+        self.relative_panel = QWidget()
+        self.relative_panel.setObjectName("panel")
+        inner.addWidget(self.relative_panel, 0)
+        relative_inner = QVBoxLayout(self.relative_panel)
+        relative_inner.setContentsMargins(8, 8, 8, 8)
+        relative_inner.setSpacing(4)
+        self.relative_title = QLabel("My team vs league")
+        self.relative_title.setObjectName("title")
+        relative_inner.addWidget(self.relative_title)
+        self.relative_grid = QTableWidget(9, 5)
+        self.relative_grid.setHorizontalHeaderLabels(
+            ["Cat", "Mine", "Median", "Gap", "Tag"]
+        )
+        self.relative_grid.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.relative_grid.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.relative_grid.verticalHeader().setVisible(False)
+        self.relative_grid.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        self.relative_grid.setMaximumHeight(300)
+        relative_inner.addWidget(self.relative_grid, 0)
+        self.relative_panel.setVisible(False)
+
         self.refresh()
 
     # -- data loading ----------------------------------------------------------
@@ -170,6 +197,7 @@ class DraftBoard(QWidget):
             self.current_label.setText("")
             self.commit_button.setEnabled(False)
             self.undo_button.setEnabled(False)
+            self.relative_panel.setVisible(False)
             self._render_suggestions()
             return
 
@@ -246,6 +274,7 @@ class DraftBoard(QWidget):
             self.grid.setItem(r, c, QTableWidgetItem(text))
         self._render_strip()
         self._render_suggestions(report)
+        self._render_relative(report)
 
     def _render_strip(self) -> None:
         current = picks_mod.current_pick(self.snake, self.picks)
@@ -308,6 +337,41 @@ class DraftBoard(QWidget):
                     str(suggestion.rank) if suggestion.rank is not None else "—",
                     suggestion.reason,
                 ]
+            ):
+                grid.setItem(r, c, QTableWidgetItem(text))
+
+    def _render_relative(self, report=None) -> None:
+        """Per-category BUILD/COAST/PUNT tags for my team vs the league (P3).
+
+        Hides the panel when no my-team is set, there is no start order,
+        or ``category_tags`` falls back to ``None`` (blank/unknown my-team
+        — same semantics as the suggest panel fallback). v1 tags are
+        monochrome text; coloring is deferred.
+        """
+        my_team = str(self.service.settings().get("my_team", ""))
+        if not my_team or not self.start_order:
+            self.relative_panel.setVisible(False)
+            return
+        tags = category_tags(
+            self._team_projections(report),
+            my_team,
+            self._pool.rows,
+            self._excluded_names(report),
+        )
+        if tags is None:
+            self.relative_panel.setVisible(False)
+            return
+        self.relative_panel.setVisible(True)
+        self.relative_title.setText("My team vs league")
+        grid = self.relative_grid
+        grid.setRowCount(len(tags))
+        for r, tag in enumerate(tags):
+            pct = tag.cat in PCT_CATS
+            mine = f"{tag.mine:.4f}" if pct else f"{tag.mine:.1f}"
+            med = f"{tag.median:.4f}" if pct else f"{tag.median:.1f}"
+            gap = f"{tag.gap:+.4f}" if pct else f"{tag.gap:+.1f}"
+            for c, text in enumerate(
+                [CAT_LABELS[tag.cat], mine, med, gap, tag.tag]
             ):
                 grid.setItem(r, c, QTableWidgetItem(text))
 

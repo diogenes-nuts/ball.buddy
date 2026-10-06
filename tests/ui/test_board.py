@@ -334,6 +334,67 @@ def test_real_snapshot_wins_over_manual_teams(qapp, tmp_path):
     assert board.offline_banner.isHidden()
 
 
+# -- relative panel (P3: my team vs the league) --------------------------------
+
+
+def make_manual_service_12(tmp_path: Path) -> SyncService:
+    service = make_service(tmp_path)
+    settings = service.settings()
+    settings["manual_teams"] = [
+        "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot",
+        "Golf", "Hotel", "India", "Juliet", "Kilo", "Lima",
+    ]
+    settings["my_team"] = "Alpha"
+    service.save_settings(settings)
+    return service
+
+
+def test_relative_panel_shows_tags(qapp, tmp_path):
+    service = make_manual_service_12(tmp_path)
+    teams = service.settings()["manual_teams"]
+    keepers = [
+        KeeperEntry(team, f"KP-{team}", 1) for team in teams
+    ]
+    # Alpha is league-best at pts (12.0 vs 1.0) and last at reb (0.1 vs
+    # 10.0); all other stats identical league-wide (flat -> COAST).
+    # gp 70 everywhere so the engine's season totals are non-zero.
+    pool_rows = [
+        {"name": "KP-Alpha", "gp": "70", "pts_pg": "12.0", "reb_pg": "0.1"}
+    ]
+    pool_rows += [
+        {"name": f"KP-{team}", "gp": "70", "pts_pg": "1.0", "reb_pg": "10.0"}
+        for team in teams[1:]
+    ]
+    # weak filler: reb 1.0 x 70gp = 70, i.e. a 70/693 ~ 0.10 fill, below
+    # the 0.25 x gap_norm(1.0) punt-close bar -> reb stays PUNT.
+    pool_rows.append(
+        {"name": "Weak Filler", "gp": "70", "pts_pg": "1.0", "reb_pg": "1.0"}
+    )
+    write_pool(service, pool_rows)
+    board = DraftBoard(service, keepers)
+    assert not board.relative_panel.isHidden()
+    grid = board.relative_grid
+    assert grid.rowCount() == 9
+    # CATS display order: row 0 = pts, row 1 = reb
+    assert grid.item(0, 0).text() == "Pts"
+    assert grid.item(0, 4).text() == "BUILD"
+    assert grid.item(0, 1).text() == "840.0"  # 12.0 x 70gp
+    assert grid.item(0, 3).text().startswith("-")  # ahead: negative gap
+    assert grid.item(1, 0).text() == "Reb"
+    assert grid.item(1, 4).text() == "PUNT"
+    # flat categories coast
+    assert grid.item(2, 4).text() == "COAST"
+
+
+def test_relative_panel_hidden_without_my_team(qapp, tmp_path):
+    service = make_manual_service_12(tmp_path)
+    settings = service.settings()
+    settings["my_team"] = ""
+    service.save_settings(settings)
+    board = DraftBoard(service, [])
+    assert board.relative_panel.isHidden()
+
+
 def test_manual_teams_with_keepers(qapp, tmp_path):
     keepers = [KeeperEntry("Alpha", "Big Keeper", 1)]
     board = DraftBoard(make_manual_service(tmp_path), keepers)
