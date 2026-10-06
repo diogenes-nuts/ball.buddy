@@ -21,3 +21,10 @@
 - `board.py` suggest panel: updates per current pick; unranked rows `rank=None` → "—".
 - Post-review fixes (all 3 nits pinned with tests): opted-out keepers stay suggestable; unranked rank None (was max+1 = invented "200"); 12-team shape covered by domain test.
 - Verify: 162 passed / 1 skipped, ruff clean, offscreen smoke (opted-out keeper, unranked dash) OK. **ROADMAP M2 exit criteria all verified.**
+
+## 2026-10-06 — P1 — Draft v2 P1: Setup dialog (draft order, team names, keepers w/ opt-out, my-team flag) replaces the keeper grid + manual team list; includes 002_yahoo refresh-redirect_uri fix (invalid_grant on first post-expiry sync)
+- `ui/views/setup_dialog.py`: teams & draft-order table (rename, Add/Remove, Move up/down, "My team" checkbox) + keepers table (team combo, player pool completer, cost round 1–13, opt-out, resolved/UNMATCHED status w/ "try <suggestions>" hints). Writes settings manual_teams + manual_draft_order (ordered list) + my_team, and keepers.json; validate/empty/duplicate-name errors block Save; corrupt keepers.json refuses save.
+- `draft.py`: keeper grid removed → pointer to Setup; League Settings "Team list (offline)" field removed; board `setup_requested` signal + "Setup…" button, rebuild on accept.
+- `002_yahoo` fix (landed in this commit): refresh grant must replay the EXACT grant redirect_uri (OAuth2 4124 §6); token dict persists callback_uri; old hardcoded https://www.yahoo.com caused 400 invalid_grant "invalid refresh token" on first post-expiry sync.
+- Review fixes: duplicate/empty team names block Save; status column suggestions; 3 new UI tests.
+- Verify: 299 passed / 1 skipped, ruff clean.

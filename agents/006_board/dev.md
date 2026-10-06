@@ -21,13 +21,6 @@ User decisions (2026-10-08):
   keeper grid as the manual-entry surface. Draft-order + team-name edits live there too.
 - Migration into the season engine: deferred (assume auth eventually comes).
 
-### P1 — Setup dialog
-One button on the board → dialog editing: draft order (up/down or drag), team names,
-keepers per team (player via pool lookup, cost round 1–13, opt-out), and which team is
-MINE. Replaces the offline team list (settings["manual_teams"]) + keeper grid as the
-manual-entry surface; persists to the same stores (settings, keepers.json) so the board
-keeps working unchanged. Old surfaces: keeper grid demoted/removed per scout findings.
-
 ### P2 — Need-aware recommender (B + C1)
 Score each candidate for MY current pick: (a) pool value, (b) league-relative category
 need of my team (my projection vs median team, same pool → systematic bias cancels),
