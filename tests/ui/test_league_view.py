@@ -79,7 +79,7 @@ def test_unmatched_banner_shows_when_report_has_unmatched(qapp, tmp_path):
     view.apply_result(result)
     assert not view.unmatched_banner.isHidden()
     assert "4 roster players unmatched" in view.unmatched_banner.text()
-    assert view.unmatched_banner.objectName() == "banner-alert"
+    assert view.unmatched_banner.objectName() == "banner-danger"
 
 
 def test_no_unmatched_banner_when_all_matched(qapp, tmp_path):

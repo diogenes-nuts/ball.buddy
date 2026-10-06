@@ -1,123 +1,208 @@
-"""Tactile-cream UI theme (light, tokens.json) as a single Qt stylesheet.
+"""Tactile-cream UI theme (light + dark) as Qt stylesheets.
 
-Tokens are kept as named constants so later milestones can swap values
-(e.g. dark theme) without touching the stylesheet layout.
+Tokens come from the tactile-cream-ui skill (tokens.json, light and dark
+blocks) and are kept as named dicts so the palettes can be swapped at
+runtime (``apply_theme(app, "dark")``) without touching the stylesheet
+layout. All colors, radii, and sizes are token values; no off-scale
+literals.
 
-Documented deviation: Qt stylesheets cannot express box-shadow or true
-linear gradients, so control gradients are approximated with a flat
-``control-top`` fill, a 1px light top border (via border-top-color), and
-the 2px hard outline. No emoji; sentence-case labels; 4px spacing scale;
-32px nav button height.
+User deviation (over the M0 documented approximation): control gradients
+are rendered as a FLAT fill (``control-top`` per state) with NO light top
+border — the user asked to drop the gradient frame.
+
+Documented Qt deviations (Qt stylesheets cannot express these):
+- No box-shadow: ``--shadow-raised``/``--shadow-pressed`` read as flat
+  fills; keyboard focus is a sunken fill (inset approximation of
+  ``--shadow-focus``).
+- No true linear gradients (see above).
+- Table hover-row and the selected-row 4px inset outline bar are not
+  expressible in QSS; row selection is flat sunken instead.
+- ``--font-display`` degrades to "Trebuchet MS" (first available rounded
+  sans on Windows; Quicksand is not bundled).
+- Dialogs render on canvas with no outline frame (QDialog frame chrome is
+  platform-owned); content inside dialogs follows the panel recipes.
 """
+
+from __future__ import annotations
 
 from PySide6.QtWidgets import QApplication
 
-# --- tokens (light) -------------------------------------------------------
-CANVAS = "#F5EFE0"
-SURFACE = "#FBF7EC"
-SUNKEN = "#EBE4D1"
-CONTROL_TOP = "#FFFCF3"
-CONTROL_BOTTOM = "#F0E8D3"
-CONTROL_HOVER_TOP = "#FFFFFA"
-CONTROL_HOVER_BOTTOM = "#F5EEDB"
-OUTLINE = "#000000"
-DIVIDER = "#CFC6AE"
-TEXT = "#1C1A16"
-TEXT_SECONDARY = "#5E584B"
-TEXT_MUTED = "#736C5B"  # never used on sunken surfaces
-INK_FILL = "#1C1A16"
-TEXT_ON_INK = "#F5EFE0"
-
-FONT_FAMILY = '"IBM Plex Mono", Consolas, monospace'
-TEXT_BASE = "13px"
-TEXT_LG = "16px"
-
-BORDER = f"2px solid {OUTLINE}"
+# --- base tokens ----------------------------------------------------------
+BORDER = "2px"
+DIVIDER = "1px"
 RADIUS_CONTAINER = "0px"
 RADIUS_CONTROL = "8px"
-NAV_HEIGHT = "32px"
+RADIUS_CHECK = "4px"
+CONTROL_H = 32
+SIDEBAR_W = 200  # noqa: F841 - kept for reference; shell sets it explicitly
+ROW_H = 28  # table rows
+FONT_MONO = '"IBM Plex Mono", Consolas, monospace'
+FONT_DISPLAY = (
+    '"Quicksand", "Varela Round", "Arial Rounded MT Bold", "Trebuchet MS", '
+    "sans-serif"
+)
+TEXT_XS = "11px"
+TEXT_MD = "14px"
+TEXT_BASE = "13px"
+TEXT_LG = "16px"
+WEIGHT_MEDIUM = 500
+WEIGHT_SEMIBOLD = 600
 
-STYLE = f"""
+# --- palette tokens (tokens.json) ------------------------------------------
+LIGHT: dict[str, str] = {
+    "canvas": "#F5EFE0",
+    "surface": "#FBF7EC",
+    "sunken": "#EBE4D1",
+    "control_top": "#FFFCF3",
+    "control_bottom": "#F0E8D3",
+    "control_hover_top": "#FFFFFA",
+    "control_hover_bottom": "#F5EEDB",
+    "outline": "#000000",
+    "divider": "#CFC6AE",
+    "text": "#1C1A16",
+    "text_secondary": "#5E584B",
+    "text_muted": "#736C5B",  # never used on sunken surfaces
+    "ink_fill": "#1C1A16",
+    "text_on_ink": "#F5EFE0",
+    "success": "#5F7F52",
+    "success_bg": "#DCE6CF",
+    "success_text": "#34502A",
+    "warning": "#B8872E",
+    "warning_bg": "#F1E2BD",
+    "warning_text": "#6B4C0F",
+    "danger": "#A9473C",
+    "danger_bg": "#EFD3CC",
+    "danger_text": "#7A2A21",
+    "info": "#4F7280",
+    "info_bg": "#D3E0E4",
+    "info_text": "#2F4D59",
+}
+
+DARK: dict[str, str] = {
+    "canvas": "#1B1913",
+    "surface": "#25221A",
+    "sunken": "#14120D",
+    "control_top": "#3A352A",
+    "control_bottom": "#2C281F",
+    "control_hover_top": "#433D30",
+    "control_hover_bottom": "#332E24",
+    "outline": "#F5EFE0",
+    "divider": "#3F3A2E",
+    "text": "#F5EFE0",
+    "text_secondary": "#BDB5A0",
+    "text_muted": "#8F8874",
+    "ink_fill": "#F5EFE0",
+    "text_on_ink": "#1B1913",
+    "success": "#8FB07F",
+    "success_bg": "#2B3626",
+    "success_text": "#B5D2A6",
+    "warning": "#D9AE5B",
+    "warning_bg": "#3A3120",
+    "warning_text": "#EBCB8A",
+    "danger": "#D4786C",
+    "danger_bg": "#3C2723",
+    "danger_text": "#EBA498",
+    "info": "#84A6B4",
+    "info_bg": "#263339",
+    "info_text": "#A9C6D2",
+}
+
+THEMES: dict[str, dict[str, str]] = {"light": LIGHT, "dark": DARK}
+
+
+def _style(p: dict[str, str]) -> str:
+    """Build the stylesheet for one palette (see module docstring for
+    documented Qt approximations)."""
+    hard = f"{BORDER} solid {p['outline']}"
+    thin = f"{DIVIDER} solid {p['divider']}"
+    return f"""
 * {{
-    font-family: {FONT_FAMILY};
+    font-family: {FONT_MONO};
     font-size: {TEXT_BASE};
-    color: {TEXT};
+    font-weight: {WEIGHT_MEDIUM};
+    color: {p['text']};
     outline: none;
 }}
 
 QMainWindow, QWidget {{
-    background-color: {CANVAS};
+    background-color: {p['canvas']};
 }}
 
-/* Containers: 2px hard outline, square corners */
+/* Containers: 2px hard outline, square corners, flat surface fill */
 QWidget#panel {{
-    background-color: {SURFACE};
-    border: {BORDER};
+    background-color: {p['surface']};
+    border: {hard};
     border-radius: {RADIUS_CONTAINER};
 }}
 
-/* Controls: 2px outline, 8px radius, gradient approximated with a flat
-   control-top fill + 1px light top border */
+/* Sidebar: surface fill, 2px right edge; no double borders (the left edge
+   sits on the canvas) */
+QFrame#sidebar {{
+    background-color: {p['surface']};
+    border: none;
+    border-right: {hard};
+    border-radius: {RADIUS_CONTAINER};
+}}
+
+/* Controls: 2px outline, 8px radius, flat fill (gradient dropped by user
+   request; states shift the flat fill, no top-border frame) */
 QPushButton {{
-    background-color: {CONTROL_TOP};
-    border: {BORDER};
-    border-top-color: {CONTROL_HOVER_TOP};
+    min-height: {CONTROL_H}px;
+    background-color: {p['control_top']};
+    border: {hard};
     border-radius: {RADIUS_CONTROL};
     padding: 2px 12px;
     text-align: left;
 }}
 QPushButton:hover {{
-    background-color: {CONTROL_HOVER_TOP};
-    border-top-color: {SURFACE};
+    background-color: {p['control_hover_top']};
 }}
 QPushButton:pressed {{
-    background-color: {CONTROL_BOTTOM};
-    border-top-color: {DIVIDER};
+    background-color: {p['control_bottom']};
 }}
 QPushButton:disabled {{
-    color: {TEXT_MUTED};
-    background-color: {SURFACE};
+    color: {p['text_secondary']};
+    background-color: {p['surface']};
+    border-color: {p['divider']};
 }}
 
-/* Visible keyboard-focus indicator (compensates for the global
-   outline:none; Qt has no box-shadow, so a dark 1px top edge + sunken
-   fill approximate the spec's inset focus highlight) */
+/* Visible keyboard focus (inset approximation of --shadow-focus) */
 QPushButton:focus {{
-    background-color: {SUNKEN};
-    border-top-color: {TEXT_SECONDARY};
+    background-color: {p['sunken']};
 }}
 
-/* Ink-fill primary buttons */
+/* Ink-fill primary buttons (one per region); tokens invert in dark so the
+   primary is cream-filled with dark text there */
 QPushButton[ink="true"] {{
-    background-color: {INK_FILL};
-    border: {BORDER};
-    color: {TEXT_ON_INK};
+    background-color: {p['ink_fill']};
+    border: {hard};
+    color: {p['text_on_ink']};
     text-align: center;
 }}
 QPushButton[ink="true"]:hover {{
-    background-color: {TEXT_SECONDARY};
+    background-color: {p['text_secondary']};
 }}
 QPushButton[ink="true"]:disabled {{
-    background-color: {TEXT_MUTED};
-    color: {CANVAS};
+    background-color: {p['text_muted']};
+    color: {p['canvas']};
 }}
 
-/* Nav: control-styled buttons, fixed 32px height; checked = sunken */
+/* Nav: control-styled buttons, 32px; ACTIVE = ink fill (the only
+   persistent inverted element in the sidebar) */
 QButtonGroup::button, QPushButton#nav {{
-    min-height: {NAV_HEIGHT};
-    background-color: {CONTROL_TOP};
-    border: {BORDER};
-    border-top-color: {CONTROL_HOVER_TOP};
+    min-height: {CONTROL_H}px;
+    background-color: {p['control_top']};
+    border: {hard};
     border-radius: {RADIUS_CONTROL};
     text-align: left;
     padding: 2px 8px;
 }}
 QPushButton#nav:hover {{
-    background-color: {CONTROL_HOVER_TOP};
+    background-color: {p['control_hover_top']};
 }}
 QPushButton#nav:checked {{
-    background-color: {SUNKEN};
-    border-top-color: {DIVIDER};
+    background-color: {p['ink_fill']};
+    color: {p['text_on_ink']};
 }}
 
 QLabel {{
@@ -125,61 +210,165 @@ QLabel {{
     border: none;
 }}
 QLabel#title {{
+    font-family: {FONT_DISPLAY};
     font-size: {TEXT_LG};
-    font-weight: 600;
+    font-weight: {WEIGHT_SEMIBOLD};
 }}
 QLabel#secondary {{
-    color: {TEXT_SECONDARY};
+    color: {p['text_secondary']};
+}}
+QLabel#appname {{
+    font-family: {FONT_DISPLAY};
+    font-size: {TEXT_MD};
+    font-weight: {WEIGHT_SEMIBOLD};
+}}
+QLabel#version {{
+    font-size: {TEXT_XS};
+    color: {p['text_secondary']};
+}}
+QFrame#divider {{
+    background: transparent;
+    border: none;
+    border-top: {thin};
+    max-height: {DIVIDER};
 }}
 
-/* Ink-filled status banners (loud, per R3: unmatched reports are red-on-cream,
-   i.e. text on the ink fill using TEXT_ON_INK) */
-QLabel#banner {{
-    background-color: {SUNKEN};
-    border: {BORDER};
+/* Inline alerts: status-colored panel (fill + text from status tokens,
+   2px outline, 8px radius). Info = offline/manual mode; danger = errors. */
+QLabel#banner, QLabel#banner-info {{
+    background-color: {p['info_bg']};
+    color: {p['info_text']};
+    border: {hard};
     border-radius: {RADIUS_CONTROL};
     padding: 4px 12px;
 }}
-QLabel#banner-alert {{
-    background-color: {INK_FILL};
-    border: {BORDER};
+QLabel#banner-success {{
+    background-color: {p['success_bg']};
+    color: {p['success_text']};
+    border: {hard};
     border-radius: {RADIUS_CONTROL};
     padding: 4px 12px;
-    color: {TEXT_ON_INK};
+}}
+QLabel#banner-danger {{
+    background-color: {p['danger_bg']};
+    color: {p['danger_text']};
+    border: {hard};
+    border-radius: {RADIUS_CONTROL};
+    padding: 4px 12px;
 }}
 
-/* Tables (League view panes, import dialog report): surface fill, 2px hard
-   outline, dividers for grid, sunken header */
-QTableWidget {{
-    background-color: {SURFACE};
-    alternate-background-color: {CANVAS};
-    border: {BORDER};
+/* Inputs: sunken feel (sunken fill), control outline + radius */
+QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {{
+    background-color: {p['sunken']};
+    border: {hard};
+    border-radius: {RADIUS_CONTROL};
+    padding: 2px 8px;
+    color: {p['text']};
+    selection-background-color: {p['text']};
+    selection-color: {p['text_on_ink']};
+}}
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus,
+QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {{
+    background-color: {p['surface']};
+}}
+QLineEdit:disabled, QTextEdit:disabled, QSpinBox:disabled,
+QComboBox:disabled {{
+    background-color: {p['surface']};
+    color: {p['text_secondary']};
+    border-color: {p['divider']};
+}}
+QComboBox::drop-down {{
+    border: none;
+    width: 24px;
+}}
+QComboBox QAbstractItemView {{
+    background-color: {p['surface']};
+    color: {p['text']};
+    border: {hard};
     border-radius: {RADIUS_CONTAINER};
-    gridline-color: {DIVIDER};
-    selection-background-color: {SUNKEN};
-    selection-color: {TEXT};
+    selection-background-color: {p['sunken']};
+    selection-color: {p['text']};
+}}
+QSpinBox::up-button, QDoubleSpinBox::up-button,
+QSpinBox::down-button, QDoubleSpinBox::down-button {{
+    border: none;
+    background-color: {p['control_top']};
+    width: 16px;
+}}
+QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed,
+QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {{
+    background-color: {p['control_bottom']};
+}}
+
+/* Checkbox: 16px, 4px radius, control shell; checked = ink fill
+   (tokens invert the ink in dark mode) */
+QCheckBox {{
+    spacing: 8px;
+    color: {p['text']};
+}}
+QCheckBox::indicator {{
+    width: 16px;
+    height: 16px;
+    border: {hard};
+    border-radius: {RADIUS_CHECK};
+    background-color: {p['control_top']};
+}}
+QCheckBox::indicator:checked {{
+    background-color: {p['ink_fill']};
+}}
+QCheckBox::indicator:disabled {{
+    border-color: {p['divider']};
+    background-color: {p['surface']};
+}}
+
+/* Scroll area (roster toggles): sharp sunken well */
+QScrollArea {{
+    background-color: {p['surface']};
+    border: {hard};
+    border-radius: {RADIUS_CONTAINER};
+}}
+
+/* Tables: 2px outline, square, 28px rows, dividers, sunken header */
+QTableWidget {{
+    background-color: {p['surface']};
+    alternate-background-color: {p['canvas']};
+    border: {hard};
+    border-radius: {RADIUS_CONTAINER};
+    gridline-color: {p['divider']};
+    selection-background-color: {p['sunken']};
+    selection-color: {p['text']};
 }}
 QTableWidget::item {{
-    padding: 1px 6px;
+    padding: 0 12px;
     border: none;
 }}
+QTableWidget::item:selected {{
+    background-color: {p['sunken']};
+    color: {p['text']};
+}}
+QAbstractItemView::item {{
+    min-height: {ROW_H}px;
+}}
 QHeaderView::section {{
-    background-color: {SUNKEN};
-    color: {TEXT};
+    background-color: {p['sunken']};
+    color: {p['text']};
     border: none;
-    border-right: 1px solid {DIVIDER};
-    border-bottom: {BORDER};
+    border-right: {thin};
+    border-bottom: {hard};
     padding: 2px 6px;
 }}
 QTableCornerButton::section {{
-    background-color: {SUNKEN};
+    background-color: {p['sunken']};
     border: none;
-    border-bottom: {BORDER};
-    border-right: 1px solid {DIVIDER};
+    border-bottom: {hard};
+    border-right: {thin};
 }}
 """
 
 
-def apply_theme(app: QApplication) -> None:
-    """Apply the tactile-cream stylesheet to the application."""
-    app.setStyleSheet(STYLE)
+def apply_theme(app: QApplication, name: str = "light") -> None:
+    """Apply the tactile-cream stylesheet (``"light"`` or ``"dark"``)."""
+    app.setStyleSheet(_style(THEMES[name]))
+
+
+__all__ = ["LIGHT", "DARK", "THEMES", "apply_theme"]

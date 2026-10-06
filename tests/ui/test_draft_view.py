@@ -84,7 +84,7 @@ def test_no_snapshot_disables_save_and_shows_banner(qapp, tmp_path):
     view = make_view(tmp_path)
     assert view.save_button.isEnabled() is False
     assert "Sync the league first" in view.alert_banner.text()
-    assert view.alert_banner.objectName() == "banner-alert"
+    assert view.alert_banner.objectName() == "banner-danger"
     assert not view.alert_banner.isHidden()
     assert view.table.rowCount() == 0
 

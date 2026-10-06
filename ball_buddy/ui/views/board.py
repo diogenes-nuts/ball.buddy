@@ -4,7 +4,8 @@ Keeper-forfeit-aware: forfeited picks are derived from the keeper entries
 (single source of truth — they are never stored in draft_picks.json).
 Entering a pick and undoing both persist atomically via
 ``domain/picks.py`` (``io/state.py``). Theme tokens only
-(``panel``/``banner-alert``/``secondary``/``title``/ink buttons); the
+(``panel``/``banner-info``/``banner-danger``/``secondary``/``title``/ink
+buttons); the
 current-pick cell uses stock Qt selection highlight.
 """
 
@@ -58,13 +59,13 @@ class DraftBoard(QWidget):
         root.setSpacing(8)
 
         self.offline_banner = QLabel("")
-        self.offline_banner.setObjectName("banner")
+        self.offline_banner.setObjectName("banner-info")
         self.offline_banner.setWordWrap(True)
         self.offline_banner.setVisible(False)
         root.addWidget(self.offline_banner)
 
         self.alert_banner = QLabel("")
-        self.alert_banner.setObjectName("banner-alert")
+        self.alert_banner.setObjectName("banner-danger")
         self.alert_banner.setWordWrap(True)
         self.alert_banner.setVisible(False)
         root.addWidget(self.alert_banner)

@@ -45,7 +45,7 @@ from ball_buddy.domain.keepers import KeeperEntry
 from ball_buddy.domain.players import PlayerPool
 from ball_buddy.domain.waiver import WaiverCandidate, rank_candidates
 from ball_buddy.services.sync import SyncResult, SyncService
-from ball_buddy.ui.views import _offline
+from ball_buddy.ui.views import _offline, _status
 from ball_buddy.ui.views.matchup import CAT_LABELS
 
 _RESULT_NOTE = (
@@ -123,7 +123,7 @@ class WaiverView(QWidget):
         root.setSpacing(8)
 
         self.offline_banner = QLabel("")
-        self.offline_banner.setObjectName("banner")
+        self.offline_banner.setObjectName("banner-info")
         self.offline_banner.setWordWrap(True)
         self.offline_banner.setVisible(False)
         root.addWidget(self.offline_banner)
@@ -190,7 +190,7 @@ class WaiverView(QWidget):
 
         # --- banner ------------------------------------------------------------
         self.banner = QLabel(_RESULT_NOTE)
-        self.banner.setObjectName("banner")
+        self.banner.setObjectName("banner-info")
         self.banner.setWordWrap(True)
         root.addWidget(self.banner)
 
@@ -293,7 +293,7 @@ class WaiverView(QWidget):
         opp = self.opp_combo.currentText()
         if not team or not opp:
             self._clear_results()
-            self.banner.setText("Pick a team and an opponent first.")
+            _status.set_status(self.banner, "info", "Pick a team and an opponent first.")
             return
         candidates: list[WaiverCandidate] = []
         for row in self._rows:
@@ -303,7 +303,7 @@ class WaiverView(QWidget):
             candidates.append(WaiverCandidate(name=name, faab_cost=row["cost"].value()))
         if not candidates:
             self._clear_results()
-            self.banner.setText("Add at least one candidate.")
+            _status.set_status(self.banner, "info", "Add at least one candidate.")
             return
 
         roster_names, missing = _team_roster_names(self.service, team)
@@ -323,12 +323,12 @@ class WaiverView(QWidget):
                 faab_budget=self.budget_spin.value(),
             )
         except ValueError as exc:
-            self.banner.setText(str(exc))
+            _status.set_status(self.banner, "danger", str(exc))
             self._clear_results()
             return
 
-        self.banner.setText(
-            _RESULT_NOTE + (("\n" + " ".join(notes)) if notes else "")
+        _status.set_status(
+            self.banner, "success", _RESULT_NOTE + (("\n" + " ".join(notes)) if notes else "")
         )
         self._render_rankings(rankings)
 
@@ -350,7 +350,12 @@ class WaiverView(QWidget):
                 r.rationale,
             )
             for col, text in enumerate(texts):
-                self.result_table.setItem(i, col, QTableWidgetItem(text))
+                item = QTableWidgetItem(text)
+                if col in (0, 2, 5):  # rank, delta-P, FAAB cost: numbers
+                    item.setTextAlignment(
+                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                        )
+                self.result_table.setItem(i, col, item)
 
     # -- test seams ---------------------------------------------------------------
 

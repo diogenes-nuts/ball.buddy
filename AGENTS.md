@@ -45,7 +45,7 @@ Pins per `pyproject.toml` (PySide6 6.11.2, yfpy 17.0.0, cryptography 50.0.2, pyt
 
 - Python 3.14.7 at `C:\Users\User\AppData\Local\Python\pythoncore-3.14-64` (system, no global installs — always use `.venv`).
 - Windows: run the app via `python -m ball_buddy.main`; the venv must be created inside the repo (`.venv`).
-- UI theme: tactile-cream-ui, light only in M0; Qt can't do box-shadow/gradients — control gradients approximated with flat fill + 1px light top border (documented in `ball_buddy/ui/theme.py`).
+- UI theme: tactile-cream-ui, light + dark (`apply_theme(app, "light"|"dark")`; "Dark mode" checkbox in the sidebar footer, persisted in `settings["dark_mode"]`); Qt can't do box-shadow/gradients — controls use flat fills, states documented in `ball_buddy/ui/theme.py`.
 
 ### Data
 

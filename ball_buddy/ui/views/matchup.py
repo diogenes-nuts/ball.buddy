@@ -153,7 +153,7 @@ class MatchupView(QWidget):
         root.setSpacing(8)
 
         self.offline_banner = QLabel("")
-        self.offline_banner.setObjectName("banner")
+        self.offline_banner.setObjectName("banner-info")
         self.offline_banner.setWordWrap(True)
         self.offline_banner.setVisible(False)
         root.addWidget(self.offline_banner)
@@ -214,7 +214,7 @@ class MatchupView(QWidget):
         self.banner = QLabel(
             "No lineups yet — projecting full rosters from keepers + drafted picks."
         )
-        self.banner.setObjectName("banner")
+        self.banner.setObjectName("banner-info")
         self.banner.setWordWrap(True)
         root.addWidget(self.banner)
 

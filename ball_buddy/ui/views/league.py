@@ -2,7 +2,7 @@
 
 3-pane QSplitter; sync runs off the UI thread via a QThread worker that calls
 headless :class:`SyncService`. All colors come from existing theme tokens
-(``panel``/``banner``/``banner-alert``/tables). No emoji; sentence-case.
+(``panel``/``banner-info``/``banner-success``/``banner-danger``/tables). No emoji; sentence-case.
 """
 
 from __future__ import annotations
@@ -196,18 +196,18 @@ class LeagueView(QWidget):
         root.addLayout(header)
 
         self.offline_banner = QLabel("")
-        self.offline_banner.setObjectName("banner")
+        self.offline_banner.setObjectName("banner-info")
         self.offline_banner.setWordWrap(True)
         self.offline_banner.setVisible(False)
         root.addWidget(self.offline_banner)
 
         # --- status banners ---------------------------------------------------
         self.status_banner = QLabel("")
-        self.status_banner.setObjectName("banner")
+        self.status_banner.setObjectName("banner-info")
         self.status_banner.setWordWrap(True)
         root.addWidget(self.status_banner)
         self.unmatched_banner = QLabel("")
-        self.unmatched_banner.setObjectName("banner-alert")
+        self.unmatched_banner.setObjectName("banner-danger")
         self.unmatched_banner.setWordWrap(True)
         self.unmatched_banner.setVisible(False)
         root.addWidget(self.unmatched_banner)
@@ -353,11 +353,11 @@ class LeagueView(QWidget):
 
         # status banner
         if result.needs_login:
-            self._set_banner(self.status_banner, "banner", f"Sign in required: {result.error}")
+            self._set_banner(self.status_banner, "banner-info", f"Sign in required: {result.error}")
         elif result.error:
-            self._set_banner(self.status_banner, "banner", f"Sync failed: {result.error}")
+            self._set_banner(self.status_banner, "banner-info", f"Sync failed: {result.error}")
         elif result.ok:
-            self._set_banner(self.status_banner, "banner", "Synced just now.")
+            self._set_banner(self.status_banner, "banner-info", "Synced just now.")
         else:
             stale = self._format_age(result.snapshot_age_seconds)
             self._set_banner(
@@ -540,7 +540,7 @@ class LeagueView(QWidget):
         try:
             self.service.sign_in_ready()
         except LoginRequiredError as exc:
-            self._set_banner(self.status_banner, "banner", str(exc))
+            self._set_banner(self.status_banner, "banner-info", str(exc))
             return
         SignInDialog(self.service, self).exec()
         # Re-derive banners/button state from whatever the dialog accomplished.

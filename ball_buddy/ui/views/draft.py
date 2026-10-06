@@ -3,11 +3,11 @@
 Two pre-allocated rows per team (structural 2/team cap — no team picker),
 player free-text with a QCompleter over the local pool, cost round 1..13,
 opt-out checkbox. Names are bridged live via the naming bridge; unmatched
-names are flagged (Status + banner-alert) but still save. Only
+names are flagged (Status + banner-danger) but still save. Only
 ``keepers.validate`` errors block Save.
 
 All colors come from existing theme tokens (``panel``/``banner``/
-``banner-alert``/tables). No emoji; sentence-case labels.
+``banner-success``/``banner-danger``/tables). No emoji; sentence-case labels.
 """
 
 from __future__ import annotations
@@ -71,17 +71,17 @@ class DraftView(QWidget):
         root.addLayout(header)
 
         self.offline_banner = QLabel("")
-        self.offline_banner.setObjectName("banner")
+        self.offline_banner.setObjectName("banner-info")
         self.offline_banner.setWordWrap(True)
         self.offline_banner.setVisible(False)
         root.addWidget(self.offline_banner)
 
         self.status_banner = QLabel("")
-        self.status_banner.setObjectName("banner")
+        self.status_banner.setObjectName("banner-info")
         self.status_banner.setWordWrap(True)
         root.addWidget(self.status_banner)
         self.alert_banner = QLabel("")
-        self.alert_banner.setObjectName("banner-alert")
+        self.alert_banner.setObjectName("banner-danger")
         self.alert_banner.setWordWrap(True)
         self.alert_banner.setVisible(False)
         root.addWidget(self.alert_banner)
@@ -135,13 +135,13 @@ class DraftView(QWidget):
             self.save_button.setEnabled(False)
             _offline.hide_banner(self.offline_banner)
             self._set_banner(
-                self.alert_banner, "banner-alert", "Sync the league first (League → Sync now)"
+                self.alert_banner, "banner-danger", "Sync the league first (League → Sync now)"
             )
-            self._set_banner(self.status_banner, "banner", "")
+            self._set_banner(self.status_banner, "banner-info", "")
             self._rebuild_board([])
             return
 
-        self._set_banner(self.alert_banner, "banner-alert", "")
+        self._set_banner(self.alert_banner, "banner-danger", "")
         if _offline.is_manual(snapshot):
             _offline.show_banner(self.offline_banner)
         else:
@@ -158,7 +158,7 @@ class DraftView(QWidget):
         try:
             saved = keepers_mod.load(self.keepers_path)
         except StateError as exc:
-            self._set_banner(self.alert_banner, "banner-alert", f"keepers.json: {exc}")
+            self._set_banner(self.alert_banner, "banner-danger", f"keepers.json: {exc}")
         dropped: list[KeeperEntry] = []
         for entry in saved:
             if not self._apply_entry(entry):
@@ -170,7 +170,7 @@ class DraftView(QWidget):
             + ", ".join(f"{e.player} ({e.team})" for e in dropped)
         )
         self.save_button.setEnabled(True)
-        self._set_banner(self.status_banner, "banner", "")
+        self._set_banner(self.status_banner, "banner-info", "")
         self.update_statuses()
         self._rebuild_board(saved)
 
@@ -260,7 +260,7 @@ class DraftView(QWidget):
         if not entries:
             for row in self._rows:
                 self.table.item(row["row"], 4).setText("")
-            self._set_banner(self.alert_banner, "banner-alert", "")
+            self._set_banner(self.alert_banner, "banner-danger", "")
             return
         report = bridge(
             [entry.player for entry in entries],
@@ -301,7 +301,7 @@ class DraftView(QWidget):
         if self._dropped_msg:
             problems.append(self._dropped_msg)
         self._set_banner(
-            self.alert_banner, "banner-alert", "; ".join(problems)
+            self.alert_banner, "banner-danger", "; ".join(problems)
         )
 
     @staticmethod
@@ -320,13 +320,15 @@ class DraftView(QWidget):
         resolved = self._resolved(entries)
         errors = keepers_mod.validate(entries, self.teams, resolved)
         if errors:
-            self._set_banner(self.alert_banner, "banner-alert", "; ".join(errors))
-            self._set_banner(self.status_banner, "banner", "Not saved — fix the errors above.")
+            self._set_banner(self.alert_banner, "banner-danger", "; ".join(errors))
+            self._set_banner(
+                self.status_banner, "banner-danger", "Not saved — fix the errors above."
+            )
             return
         keepers_mod.save(entries, self.keepers_path)
         self._set_banner(
             self.status_banner,
-            "banner",
+            "banner-success",
             f"Saved {len(entries)} keepers to keepers.json.",
         )
         self.update_statuses()

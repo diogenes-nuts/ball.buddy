@@ -24,6 +24,7 @@ All colors come from :mod:`ball_buddy.ui.theme` tokens (no raw hex).
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -48,7 +49,7 @@ from ball_buddy.domain.keepers import KeeperEntry
 from ball_buddy.domain.players import PlayerPool
 from ball_buddy.domain.trade import Trade, TradeResult
 from ball_buddy.services.sync import SyncResult, SyncService
-from ball_buddy.ui.views import _offline
+from ball_buddy.ui.views import _offline, _status
 from ball_buddy.ui.views.matchup import CAT_LABELS
 
 _BASE_NOTE = "No trade entered — pick players above, then Analyze."
@@ -114,7 +115,7 @@ class TradeView(QWidget):
         root.setSpacing(8)
 
         self.offline_banner = QLabel("")
-        self.offline_banner.setObjectName("banner")
+        self.offline_banner.setObjectName("banner-info")
         self.offline_banner.setWordWrap(True)
         self.offline_banner.setVisible(False)
         root.addWidget(self.offline_banner)
@@ -189,7 +190,7 @@ class TradeView(QWidget):
 
         # --- banner ------------------------------------------------------------
         self.banner = QLabel(_BASE_NOTE)
-        self.banner.setObjectName("banner")
+        self.banner.setObjectName("banner-info")
         self.banner.setWordWrap(True)
         root.addWidget(self.banner)
 
@@ -358,7 +359,7 @@ class TradeView(QWidget):
         opp = self.opp_combo.currentText()
         if self.snapshot is None or not team or not opp:
             self._clear_results()
-            self.banner.setText("Pick a team and an opponent first.")
+            _status.set_status(self.banner, "info", "Pick a team and an opponent first.")
             return
 
         my_names, my_missing = _team_roster_names(self.service, team)
@@ -370,9 +371,11 @@ class TradeView(QWidget):
             notes.append(f"{opp}: not in pool: {', '.join(opp_missing)} (skipped).")
         if not my_names or not opp_names:
             self._clear_results()
-            self.banner.setText(
+            _status.set_status(
+                self.banner,
+                "info",
                 "Empty roster: no keepers/picks resolved in the pool."
-                + (("\n" + " ".join(notes)) if notes else "")
+                + (("\n" + " ".join(notes)) if notes else ""),
             )
             return
 
@@ -392,12 +395,12 @@ class TradeView(QWidget):
         except ValueError as exc:
             self.last_result = None
             self._clear_results()
-            self.banner.setText(str(exc))
+            _status.set_status(self.banner, "danger", str(exc))
             return
 
         self.last_result = result
-        self.banner.setText(
-            result.summary + (("\n" + " ".join(notes)) if notes else "")
+        _status.set_status(
+            self.banner, "success", result.summary + (("\n" + " ".join(notes)) if notes else "")
         )
         self._render(result)
 
@@ -420,7 +423,12 @@ class TradeView(QWidget):
                     (CAT_LABELS[cat], _fmt_gap(cat, b), _fmt_gap(cat, a),
                      _fmt_gap(cat, a - b))
                 ):
-                    table.setItem(i, col, QTableWidgetItem(text))
+                    item = QTableWidgetItem(text)
+                    if col > 0:  # Before/After/Delta are numbers
+                        item.setTextAlignment(
+                            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                            )
+                    table.setItem(i, col, item)
 
         self.summary_label.setText(
             f"you: {result.my_baseline_p:.4f} -> "

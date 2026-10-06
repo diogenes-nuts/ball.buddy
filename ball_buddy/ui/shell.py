@@ -3,8 +3,10 @@
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QCheckBox,
     QFrame,
     QHBoxLayout,
+    QLabel,
     QMainWindow,
     QPushButton,
     QStackedWidget,
@@ -12,6 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ball_buddy import VERSION
 from ball_buddy.pathing import resolve_data_dir
 from ball_buddy.services.sync import SyncService
 from ball_buddy.ui.appicon import draw_app_icon
@@ -39,14 +42,21 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
 
-        # Left sidebar first (layout order = visual order). Draft is checked
-        # only after the stack exists, since nav toggle callbacks read self.stack.
+        # Build the stack first (the sidebar's theme toggle reads
+        # sync_service), but add the sidebar first (layout order = visual
+        # order). Draft is checked only after the stack exists, since nav
+        # toggle callbacks read self.stack.
+        stack = self._build_stack()
         layout.addWidget(self._build_sidebar())
-        layout.addWidget(self._build_stack(), 1)
+        layout.addWidget(stack, 1)
         self.nav_buttons[NAV_ITEMS.index("Draft")].setChecked(True)
 
     def _build_sidebar(self) -> QFrame:
+        # Spec shell: surface fill + 2px right edge (stylesheet), app name
+        # (display face) above the version number (mono, secondary) at the
+        # bottom, separated from the nav stack by a 1px divider.
         sidebar = QFrame()
+        sidebar.setObjectName("sidebar")
         sidebar.setFixedWidth(200)
         v = QVBoxLayout(sidebar)
         v.setContentsMargins(0, 0, 0, 0)
@@ -68,7 +78,42 @@ class MainWindow(QMainWindow):
             self.nav_buttons.append(button)
 
         v.addStretch(1)
+
+        divider = QFrame()
+        divider.setObjectName("divider")
+        v.addWidget(divider)
+
+        footer = QWidget()
+        fv = QVBoxLayout(footer)
+        fv.setContentsMargins(8, 12, 8, 12)
+        fv.setSpacing(4)
+        app_name = QLabel("ball.buddy")
+        app_name.setObjectName("appname")
+        fv.addWidget(app_name)
+        version = QLabel(f"v{VERSION}")
+        version.setObjectName("version")
+        fv.addWidget(version)
+        fv.addWidget(self._build_theme_toggle())
+        v.addWidget(footer)
         return sidebar
+
+    def _build_theme_toggle(self) -> QCheckBox:
+        """Dark-mode switch (persisted in settings; light is the default)."""
+        toggle = QCheckBox("Dark mode")
+        self.theme_toggle = toggle  # test seam
+        toggle.setChecked(bool(self.sync_service.settings().get("dark_mode")))
+        toggle.toggled.connect(self._set_theme)
+        return toggle
+
+    def _set_theme(self, dark: bool) -> None:
+        from PySide6.QtWidgets import QApplication
+
+        from ball_buddy.ui.theme import apply_theme
+
+        apply_theme(QApplication.instance(), "dark" if dark else "light")
+        settings = self.sync_service.settings()
+        settings["dark_mode"] = bool(dark)
+        self.sync_service.save_settings(settings)
 
     def _build_stack(self) -> QStackedWidget:
         # data/ at the repo root (gitignored local state: settings, tokens,

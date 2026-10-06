@@ -66,9 +66,11 @@ def main() -> int:
     from ball_buddy.ui.theme import apply_theme
 
     app = QApplication(sys.argv)
-    apply_theme(app)
     _install_error_hooks()
     window = MainWindow()
+    # Apply the persisted theme before first show (no light flash on a
+    # dark-mode install); the sidebar toggle keeps it in sync afterwards.
+    apply_theme(app, "dark" if window.sync_service.settings().get("dark_mode") else "light")
     window.show()
     return app.exec()
 

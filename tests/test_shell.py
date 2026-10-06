@@ -43,6 +43,31 @@ def test_click_league_switches_stack(qapp: QApplication) -> None:
     assert window.stack.currentIndex() == NAV_ITEMS.index("League")
 
 
+def test_dark_toggle_applies_and_persists_theme(qapp, tmp_path, monkeypatch) -> None:
+    import ball_buddy.ui.shell as shell
+
+    # Never touch the real data dir: point the shell at a sandbox.
+    monkeypatch.setattr(shell, "resolve_data_dir", lambda: tmp_path)
+    window = MainWindow()
+    assert window.theme_toggle.isChecked() is False
+    window.theme_toggle.setChecked(True)
+    assert "#1B1913" in qapp.styleSheet()  # dark canvas
+    assert window.sync_service.settings()["dark_mode"] is True
+    # back to light
+    window.theme_toggle.setChecked(False)
+    assert "#F5EFE0" in qapp.styleSheet()
+    assert window.sync_service.settings()["dark_mode"] is False
+
+
+def test_theme_built_from_both_palettes() -> None:
+    from ball_buddy.ui import theme
+
+    for name in ("light", "dark"):
+        style = theme._style(theme.THEMES[name])
+        assert "banner-danger" in style
+        assert theme.THEMES[name]["outline"] in style
+
+
 def test_clicking_every_nav_item_switches_stack(qapp: QApplication) -> None:
     window = MainWindow()
     for index, _label in enumerate(NAV_ITEMS):
