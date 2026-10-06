@@ -28,3 +28,35 @@
 - `002_yahoo` fix (landed in this commit): refresh grant must replay the EXACT grant redirect_uri (OAuth2 4124 §6); token dict persists callback_uri; old hardcoded https://www.yahoo.com caused 400 invalid_grant "invalid refresh token" on first post-expiry sync.
 - Review fixes: duplicate/empty team names block Save; status column suggestions; 3 new UI tests.
 - Verify: 299 passed / 1 skipped, ruff clean.
+
+## 2026-10-06 — P2 — Draft v2 P2: need-aware recommender reworked to CATEGORY-level (9-cat via engine.project_roster, league-median gap fill normalized by per-cat spread, `to` direction handled, C1 scarcity, reason strings) after first position-level pass was rejected as wrong level
+### P2 — Need-aware recommender (B + C1) — CATEGORY-LEVEL (spec correction 2026-10-06)
+First pass implemented POSITION-level need (per-pos value totals); wrong level for a
+9-cat H2H game — the compete/punt question is per-category. Rework required.
+
+Team projection: `engine.project_roster(secured_rows, team_name, usage_factor=1.0)`
+(all secured players active; no starter/bench). League median per category = median
+across all teams' `cat_values[cat]`. My gap per cat: `gap_c` = how far I sit BELOW the
+median in category c's better direction (higher for the 8, lower for `to`); positive =
+I'm behind.
+
+Normalization (category units are incomparable — PTS in hundreds, FT% a fraction):
+`spread_c` = max−min of cat c across teams (0 → treat spread as 1). Normalized gap
+g_c = gap_c/spread_c ∈ [0,∞); candidate fill f_c = player_c/spread_c for higher cats,
+f_c = (1 − player_c/spread_c) for `to` (low-TO quality). 
+
+Score per candidate = pool value + need + scarcity, where
+`need = Σ_c min(g_c, f_c)` (gap actually filled, normalized units; [0, 9]) and
+scarcity = max(0, median remaining count across positions − remaining count at the
+candidate's primary position) (C1, unchanged). Weights as named module constants
+(NEED_WEIGHT, SCARCITY_WEIGHT, default 1.0) for draft-day tuning.
+
+Reason string: value bit + the top 2 gap-filling categories by filled amount
+(e.g. "fills ft_pct & pts gaps") + scarcity bit when > 0.
+
+Tests: need-beats-raw-value (candidate filling my weakest cat outranks higher-value
+candidate filling nothing); `to` direction (low-TO player fills my TO gap, high-TO
+doesn't); bias cancellation (uniform shift of a stat column keeps ordering); opted-out
+keeper still eligible; my_team unset → M2.3 fallback. Exclusions unchanged.
+Bench/starter: all secured players count.
+- Review pass: fill clamped to [0,1] both directions; 'value 0' vs 'no pool value' reason distinction; pre-draft pct-dilution limitation documented. Verify: 309 passed / 1 skipped, ruff clean.
