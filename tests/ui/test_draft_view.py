@@ -45,8 +45,7 @@ def test_view_embeds_board_and_setup_button(qapp, tmp_path):
     save_fixture_snapshot(view.service)
     view.refresh()
     assert isinstance(view.board, DraftBoard)
-    assert view.board.grid.rowCount() == 13
-    assert view.board.grid.columnCount() == 2
+    assert len(view.board.snake) == 13 * 2
     assert view.board.setup_button.text() == "Setup…"
     # re-rendering with the same teams + keepers reuses the board
     same_board = view.board
@@ -73,7 +72,7 @@ def test_saved_keepers_flow_into_board(qapp, tmp_path):
     )
     view.refresh()
     assert view.board.keepers == [keepers_mod.KeeperEntry("Red", "Big Keeper", 1)]
-    assert view.board.grid.item(0, 0).text() == "Keeper: Big Keeper"
+    assert view.board._keeper_cells == {(1, 1): "Big Keeper"}
 
 
 def test_over_cap_keeper_dropped_from_board(qapp, tmp_path):

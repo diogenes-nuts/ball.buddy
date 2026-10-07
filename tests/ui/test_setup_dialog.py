@@ -160,7 +160,8 @@ def test_add_keeper_save_flows_to_board(qapp, tmp_path):
     ]
     # board forfeits the cost-round pick and shows the keeper name
     board = DraftBoard(service, saved)
-    assert "Keeper: Nikola Jokic" in board.grid.item(2, 0).text()
+    # board forfeits the cost-round pick (odd round: Alpha is order 1)
+    assert board._keeper_cells == {(3, 1): "Nikola Jokic"}
     # Status column resolved the name against the pool
     assert dialog.keepers_table.item(0, 4).text() == "Nikola Jokic"
     # reopening the dialog round-trips the entry
@@ -216,8 +217,7 @@ def test_opted_out_keeper_not_forfeited(qapp, tmp_path):
     saved = keepers_mod.load(service.data_dir / keepers_mod.KEEPERS_FILE)
     assert saved[0].opted_out is True
     board = DraftBoard(service, saved)
-    assert board.grid.item(0, 0).text() == ""  # pick stays open
-    assert board._keeper_cells == {}
+    assert board._keeper_cells == {}  # pick stays open
 
 
 # -- validation ------------------------------------------------------------------

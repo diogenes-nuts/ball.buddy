@@ -294,6 +294,9 @@ def score_pool(
                     value=row.value,
                     rank=row.rank,
                     reason=" · ".join(bits),
+                    tag=tag,
+                    gap=row.name in gap_names,
+                    score=score,
                 ),
             )
         )

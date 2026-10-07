@@ -65,6 +65,10 @@ class Suggestion:
     ``rank`` is ``None`` for rows with a blank/unparseable rank cell.
     ``reason`` explains the score (P6 composite + P2 bits) — empty only in
     the M2.3 fallback, which the UI treats as "plain pool ranking".
+    ``tag`` / ``gap`` / ``score`` are filled by the P6 path
+    (``scorer.score_pool``) for the rail chips and badge; they default to
+    empty/0.0 so the M2.3 fallback and direct ``recommend`` calls keep
+    working unchanged.
     """
 
     name: str
@@ -72,6 +76,9 @@ class Suggestion:
     value: str
     rank: int | None
     reason: str = ""
+    tag: str = ""
+    gap: bool = False
+    score: float = 0.0
 
 
 def _parse_rank(text: str) -> int | None:

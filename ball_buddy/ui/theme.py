@@ -25,6 +25,10 @@ Documented Qt deviations (Qt stylesheets cannot express these):
 
 from __future__ import annotations
 
+import math
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication
 
 # --- base tokens ----------------------------------------------------------
@@ -371,4 +375,55 @@ def apply_theme(app: QApplication, name: str = "light") -> None:
     app.setStyleSheet(_style(THEMES[name]))
 
 
-__all__ = ["LIGHT", "DARK", "THEMES", "apply_theme"]
+#: Per-theme stat-color endpoint quads (see ``stat_color``):
+#: (best, best_pale, worst, worst_pale). Light endpoints are the deep
+#: green/red of the user spec (#145900 / #500000); dark endpoints are the
+#: lighter #4ade80-class green/red (same lightness class as the THEMES
+#: ``success``/``danger`` tokens, which would be unreadable as text on
+#: dark surfaces). The pale tints are the endpoint mixed 60% toward the
+#: theme's paper (white in light, black in dark).
+_STAT_ENDPOINTS: dict[str, tuple[str, str, str, str]] = {
+    "light": ("#145900", "#A1BD99", "#500000", "#B99999"),
+    "dark": ("#4ade80", "#21643A", "#f87171", "#703333"),
+}
+
+
+def stat_color(
+    z: float, lower_is_better: bool = False, theme: str = "light"
+) -> QColor:
+    """Map a signed stat-z to a green (best) / red (worst) ``QColor``.
+
+    ``z`` is a signed score in the higher-is-better direction; pass
+    ``lower_is_better=True`` for categories where lower is better (``to`` —
+    the pool's raw ``z_to`` column is not sign-corrected, so pass the raw
+    value and flip here) and the sign is flipped internally. The value is
+    mapped to a percentile through the standard-normal CDF (``math.erf``);
+    the neutral 45th–55th percentile band returns ``Qt.transparent`` (no
+    cue — works on the cream light surface AND the dark surface; the
+    autodraft bg-color trick does not). Outside the band the color lerps
+    from a pale tint of the endpoint toward the full endpoint as the
+    percentile approaches 100/0 (t = distance past the band edge, over the
+    45 percentile points remaining). The value is treated z-score-ish:
+    callers wanting a normalized input should pass the gap divided by the
+    league spread. Endpoint pairs are hardcoded per theme (documented in
+    ``_STAT_ENDPOINTS``); no stylesheet change is involved.
+    """
+    signed = -z if lower_is_better else z
+    percentile = 0.5 * (1.0 + math.erf(signed / math.sqrt(2)))
+    if 0.45 <= percentile <= 0.55:
+        return QColor(Qt.GlobalColor.transparent)
+    best, best_pale, worst, worst_pale = _STAT_ENDPOINTS[theme]
+    if percentile > 0.55:
+        t = (percentile - 0.55) / 0.45
+        lo, hi = QColor(best_pale), QColor(best)
+    else:
+        t = (0.45 - percentile) / 0.45
+        lo, hi = QColor(worst_pale), QColor(worst)
+    return QColor(
+        int(round(lo.red() + (hi.red() - lo.red()) * t)),
+        int(round(lo.green() + (hi.green() - lo.green()) * t)),
+        int(round(lo.blue() + (hi.blue() - lo.blue()) * t)),
+    )
+
+
+__all__ = ["LIGHT", "DARK", "THEMES", "apply_theme", "stat_color"]
