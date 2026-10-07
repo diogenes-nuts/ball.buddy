@@ -16,7 +16,7 @@ from ball_buddy.io.yahoo import auth
 from ball_buddy.ui.shell import NAV_ITEMS, MainWindow
 
 FIXTURE = Path("tests/fixtures/hashtag_sample.html")
-SEED_CSV = "name,pos,team\nOLD PLAYER,X,NOP\n"
+SEED_CSV = "name,pos,team\nNikola Jokic,X,NOP\n"
 
 
 @pytest.fixture(scope="module")
@@ -49,6 +49,8 @@ def test_launch_scan_banner_and_undo(window: MainWindow, tmp_path) -> None:
     assert league.inbox_banner.objectName() == "banner-success"
     text = league.inbox_banner.text()
     assert "sample.html" in text and "3 players" in text
+    # the reconcile summary (ImportedEntry.note) is surfaced in the banner
+    assert "replaced" in text and "new" in text
     assert not league.inbox_undo_button.isHidden()
     assert (tmp_path / "players.prev.csv").read_text(encoding="utf-8") == SEED_CSV
 

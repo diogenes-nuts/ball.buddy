@@ -1,35 +1,34 @@
-# State — ball.buddy: Draft v2 complete; user loading projection pool from import.html (Hashtag import-v4)
+# State — ball.buddy: projection import pipeline (P4 inbox committed; P5 reconcile next)
 (Rewrite this whole file at every checkpoint. Never append.)
 
 "Told" = user has heard this from you in plain words.
 
 ## Status
-- Position: Draft v2 (P1 setup dialog / P2 category-level recommender / P3 relative panel) ALL DONE, committed + pushed (3c51674..9c174c2). Exe rebuilt with P1+P2+P3, dist/data/ restored (settings+token+cert).
-- ACTIVE TASK: user wants to "integrate my projections" → pointed me at `import.html` (repo root, 2.2MB) — it IS a saved Hashtag import-v4 page (same format the app's Pool→"Import pool" already handles; saved from hashtagbasketball.com/import-v4). So no new importer needed: load via existing Pool import dialog, or run importer headless to pre-populate dist/data/players.csv.
-- Exact next step: verify importer parses import.html (ball_buddy/io/pool/importer.parse_file / in-app dialog), then either (a) tell Meatbag: run exe → Pool view → Import pool → pick import.html → review unmatched table → Save, or (b) run the parse headless and write dist/data/players.csv. Then confirm recommender/panel light up with real data.
-- In flight: none committed; import.html is at repo root (untracked — decide: leave untracked or gitignore; data artifacts live in gitignored data dirs).
+- Position: 001_data. P4 import inbox DONE + phase-committed (338 passed, ruff clean). Doc archive of P4 (dev.md→done.md) + doc commit in flight NOW. Then P5 (Hashtag∪Yahoo reconcile) chain.
+- Exact next step: (1) rewrite dev.md removing P4 (create done.md w/ P4 header), git commit docs; (2) launch P5 chain (scout→planner→worker→reviewer→fix).
+- In flight: 001_data dev.md/done.md doc edits only.
 
 ## Findings (told yes unless noted)
-- Pool = data/players.csv canonical FIELDNAMES: name, pos, team, gp, mpg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg, to_pg, fg_pct, fga_pg, ft_pct, fta_pg, three_pg, adp_round, rank, value, z_*(9), adp_source, notes. Told yes (column table).
-- Engine consumes gp × per-game rates; FG%/FT% need fga_pg/fta_pg for attempt-weighted pooling (project_roster). z_*/mpg/notes NOT consumed by draft mode.
-- P2 recommender: score = value + NEED_WEIGHT*need + SCARCITY_WEIGHT*scarcity (constants in domain/recommend.py, draft-day tuning knobs); need = Σ min(g_c, f_c) 9-cat league-relative (engine.project_roster usage_factor=1.0, all secured active); C1 scarcity = remaining pos count vs median. Reason strings. Fallback to M2.3 ranking when my_team unset. Known limitation: pre-draft pct-cat signal diluted (documented).
-- P3: domain/relative.py category_tags — BUILD top-3 / PUNT bottom-3 + best remaining undrafted fill <25% normalized gap / else COAST; hidden w/o my_team; pre-draw COAST fallback.
-- P1: ui/views/setup_dialog.py (order/names/keepers/my_team → settings + keepers.json); keeper grid → pointer; League offline team list removed.
-- 403 "application is not authorized" persists AFTER dev-program acceptance (2026-10-08) → offline-first; refresh-redirect_uri bug (invalid_grant) fixed in same window (recorded 002_yahoo status).
-- League: 12 teams, 13 rounds, 24 keepers, FAAB 100, top-4, pure 9-cat. Draft Oct 15–20, 2026 (~1 week).
-- User rules: mine-only relative lens; no timer/lock-in (Yahoo owns it); all secured active (no starter/bench); C2 demand-sim rejected (his endorsement of my reasoning).
+- User's projections = saved Hashtag import-v4 HTML, top-200 only; Hashtag updates regularly → wants automation. Told yes.
+- P4 built (told yes): data/inbox/ drop folder; launch scan + Rescan button; SHA-256 per file in inbox_state.json; auto-import valid v4 → players.csv (prev → players.prev.csv, ONE per scan = undo restores pre-scan); unparseable → named error banner, file stays; pool cache invalidated (pool_changed signal, board offline branch reloads); manual import of inbox file recorded in state; in_inbox() canonical path check.
+- P5 spec agreed (told yes): name-join ONLY (user: Yahoo ranks ≠ Hashtag ranks — never join on rank; rank col = Hashtag rank when present, None for Yahoo rows); Hashtag = projection authority (replace on match); Yahoo rows (rosters+FA pool, name/pos/team, blank stats) survive re-imports; loud added/replaced/orphan counts; test vs mock Yahoo doc offline; live only when auth lands.
+- import.html + import_files/ at repo root: user's rm was BLOCKED by user → gitignored instead; files still on disk. Told no — ask user if they still want them deleted.
+- Draft v2 (006_board P1-P3) complete + pushed (9c174c2): setup dialog, category-level recommender, BUILD/COAST/PUNT panel. Exe has all of it.
+- 403 persists post dev-program acceptance → offline-first (002_yahoo status updated).
+- League: 12 teams, 13 rounds, 24 keepers, FAAB 100, top-4, pure 9-cat; draft Oct 15–20, 2026.
+- User rules: mine-only relative lens; no timer/lock-in; all secured active; C2 rejected.
 
 ## Verification
-- Baseline: 9c174c2 (pushed) — 321 passed + 1 skipped, ruff clean.
-- Exe build: P1+P2+P3 in dist; user closed old running exe (PID lock broke first build attempt).
+- Baseline: P4 phase commit — 338 passed + 1 skipped, ruff clean.
+- dist/data/players.csv = 200 rows from import.html (headless pre-populated earlier); dist/data/ restored into rebuilt exe.
 
 ## Env gotchas (carry forward)
-- Windows bash here: FORWARD SLASHES everywhere — backslash args mangle (pyinstaller ball_buddy\main.py → ball_buddymain.py; .\.venv\ fails).
-- edit() call atomic (one bad edit kills all); non-ASCII oldText (em dash) fails — match pure-ASCII regions.
-- pyinstaller -y wipes dist/ — mv dist/data aside FIRST, restore after. Running ball.buddy.exe locks dist files — close app before rebuild.
-- Local inference: sequential subagent chains only; scout→planner→worker→reviewer→fix worker per phase; phase_complete commits, then dev.md→done.md archive + commit docs.
-- Stack: Py 3.14.7, PySide6 6.11.2, yfpy 17.0.0, cryptography 50.0.2, pytest 9.1.1, ruff 0.16.10, pyinstaller 6.22.3. venv at .venv, Python system 3.14.7.
+- Windows bash: FORWARD SLASHES everywhere (backslash args mangle).
+- edit() atomic; non-ASCII oldText (em dash) fails.
+- pyinstaller -y wipes dist/ — mv dist/data aside, restore after; close running exe first (file locks).
+- Subagent chains: local inference → sequential; scout→planner→worker→reviewer→fix; phase_complete commits then dev.md→done.md + doc commit.
+- Stack: Py 3.14.7, PySide6 6.11.2, yfpy 17.0.0, cryptography 50.0.2, pytest 9.1.1, ruff 0.16.10, pyinstaller 6.22.3.
 
 ## Dead ends
-- Yahoo auth: re-sign-in/PKCE/scope (pre-acceptance) AND dev-program acceptance (2026-10-08) all 403. Don't build against live sync; offline path is the plan. Told yes.
-- P2 position-level need: wrong level for 9-cat game — reworked to category-level. Told yes.
+- Yahoo auth: all 403 post-acceptance (2026-10-08). Offline path is the plan. Told yes.
+- P2 position-level need: wrong level → category-level. Told yes.

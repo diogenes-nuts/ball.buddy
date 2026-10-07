@@ -24,8 +24,18 @@ from PySide6.QtWidgets import (
 
 from ball_buddy.domain.naming import MatchReport, bridge
 from ball_buddy.domain.players import PlayerPool
+from ball_buddy.domain.reconcile import (
+    reconcile_pool,
+    yahoo_players_from_snapshot,
+)
 from ball_buddy.io.pool import inbox
-from ball_buddy.io.pool.importer import ImportError, parse_file, validate_rows, write_csv
+from ball_buddy.io.pool.importer import (
+    ImportError,
+    load_players,
+    parse_file,
+    validate_rows,
+    write_csv,
+)
 from ball_buddy.services.sync import SyncService
 
 
@@ -121,7 +131,18 @@ class PoolImportDialog(QWidget):
         else:
             self.warnings_label.setText("No warnings.")
 
-        written = write_csv(parsed.rows, self.service.pool_path)
+        existing = (
+            load_players(self.service.pool_path)
+            if self.service.pool_path.exists()
+            else []
+        )
+        rows, pool_report = reconcile_pool(
+            parsed.rows,
+            existing,
+            yahoo_players_from_snapshot(self.snapshot) if self.snapshot else [],
+            self.service.load_aliases(),
+        )
+        written = write_csv(rows, self.service.pool_path)
         if inbox.in_inbox(self.service.data_dir, Path(path)):
             # Dedupe: an inbox file imported manually is already current,
             # so a later scan reports it unchanged instead of re-importing.
@@ -131,7 +152,8 @@ class PoolImportDialog(QWidget):
         self.last_report = report
 
         self.status_label.setText(
-            f"{written} pool players written; {len(report.matched)} matched, "
+            f"{written} pool players written ({pool_report.summary_text()}); "
+            f"{len(report.matched)} matched, "
             f"{len(report.ambiguous)} ambiguous, {len(report.unmatched)} unmatched."
         )
         self._fill_table(self.matched_table, sorted(report.matched.items()))

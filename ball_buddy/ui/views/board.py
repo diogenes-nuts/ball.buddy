@@ -334,7 +334,7 @@ class DraftBoard(QWidget):
                 [
                     suggestion.name,
                     suggestion.pos,
-                    suggestion.value,
+                    suggestion.value or "—",
                     str(suggestion.rank) if suggestion.rank is not None else "—",
                     suggestion.reason,
                 ]

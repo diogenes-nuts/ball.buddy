@@ -18,8 +18,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from ball_buddy.io.pool.importer import ImportError, parse_file, write_csv
+from ball_buddy.domain.reconcile import reconcile_pool, yahoo_players_from_snapshot
+from ball_buddy.io.pool.importer import ImportError, load_players, parse_file, write_csv
 from ball_buddy.io.state import StateError, load_json, save_json
+from ball_buddy.io.yahoo.snapshot import SnapshotError, load_snapshot
 
 VERSION = 1
 
@@ -33,6 +35,7 @@ class ImportedEntry:
     file: str
     players: int
     imported_at: str
+    note: str = ""  # reconcile_pool summary for this file
 
 
 @dataclass
@@ -113,6 +116,15 @@ def restore_prev_pool(data_dir: str | Path) -> bool:
     return True
 
 
+def _snapshot_players(data_dir: str | Path) -> list[dict]:
+    """Rostered Yahoo players from the last snapshot (``[]`` when absent/corrupt)."""
+    try:
+        document = load_snapshot(Path(data_dir) / "snapshot.json")
+    except SnapshotError:
+        return []
+    return yahoo_players_from_snapshot(document) if document else []
+
+
 def record_import(
     data_dir: str | Path, path: str | Path, players: int | None = None
 ) -> bool:
@@ -148,11 +160,25 @@ def scan_inbox(data_dir: str | Path) -> InboxOutcome:
     once as ``players.prev.csv`` before the first import of this scan, so
     :func:`restore_prev_pool` returns to the pre-import pool even when a
     scan ingests several files.
+
+    The incoming rows are reconciled against the existing pool via
+    :func:`ball_buddy.domain.reconcile.reconcile_pool` before writing
+    (Hashtag rows replace matches by normalized name; existing rows that
+    match nothing survive). Rostered players from the last saved Yahoo
+    snapshot (``data/snapshot.json``, if any) are fed in as the Yahoo side:
+    players absent everywhere are appended with blank stats. The scan is
+    headless, so the alias table is intentionally left empty: the inbox
+    merge is exact-normalized only — do not expect alias-aware merges here
+    (the in-app import dialog is alias-aware).
+
+    The per-file reconcile summary is stored in each
+    :class:`ImportedEntry`'s ``note`` so callers can surface it.
     """
     outcome = InboxOutcome()
     state = load_state(data_dir)
     files = state.setdefault(_STATE_KEY, {})
     pool_path = Path(data_dir) / "players.csv"
+    yahoo_players = _snapshot_players(data_dir)
     prev_saved = False
 
     for path in sorted(inbox_dir(data_dir).glob("*.html")):
@@ -170,17 +196,24 @@ def scan_inbox(data_dir: str | Path) -> InboxOutcome:
         if pool_path.exists() and not prev_saved:
             shutil.copyfile(pool_path, _prev_pool_path(data_dir))
             prev_saved = True
-        write_csv(parsed.rows, pool_path)
+        existing = load_players(pool_path) if pool_path.exists() else []
+        rows, report = reconcile_pool(parsed.rows, existing, yahoo_players)
+        write_csv(rows, pool_path)
 
         imported_at = datetime.now(UTC).isoformat()
         files[path.name] = {
             "sha256": digest,
             "imported_at": imported_at,
-            "players": len(parsed.rows),
+            "players": len(rows),
         }
         save_state(data_dir, state)
         outcome.imported.append(
-            ImportedEntry(file=path.name, players=len(parsed.rows), imported_at=imported_at)
+            ImportedEntry(
+                file=path.name,
+                players=len(rows),
+                imported_at=imported_at,
+                note=report.summary_text(),
+            )
         )
     return outcome
 

@@ -37,7 +37,7 @@ GP_FALLBACK = "82"
 FIELDNAMES: list[str] = [
     "name", "pos", "team", "gp", "mpg", "pts_pg", "reb_pg", "ast_pg",
     "stl_pg", "blk_pg", "to_pg", "fg_pct", "fga_pg", "ft_pct", "fta_pg",
-    "three_pg", "adp_round", "rank", "value",
+    "three_pg", "adp_round", "rank", "value", "source",
     "z_fg_pct", "z_ft_pct", "z_three", "z_pts", "z_reb", "z_ast",
     "z_stl", "z_blk", "z_to", "adp_source", "notes",
 ]
@@ -219,13 +219,19 @@ def _parse_table(
             rec[Z_FIELD_FOR[stat]] = _zvalue(row_html, suffix, cat_id)
         rec["value"] = _span_value(row_html, "Label1", suffix)
         rec["adp_source"] = adp_source
+        rec["source"] = "Hashtag"
         rec["notes"] = f"{provenance} | {notes}" if notes else provenance
         rows.append(rec)
     return rows, warns
 
 
 def validate_rows(rows: list[dict[str, str]]) -> list[str]:
-    """Validate parsed rows; return a list of human-readable warnings."""
+    """Validate parsed rows; return a list of human-readable warnings.
+
+    Blank stat/z cells are tolerated (every check is guarded by ``if raw:``),
+    so non-Hashtag rows (e.g. Yahoo rows with empty stats from
+    :mod:`ball_buddy.domain.reconcile`) pass with no warnings.
+    """
     warns: list[str] = []
     seen_ranks: set[str] = set()
     for rec in rows:

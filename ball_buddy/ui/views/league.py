@@ -272,11 +272,11 @@ class LeagueView(QWidget):
             names = ", ".join(e.file for e in outcome.imported)
             total = sum(e.players for e in outcome.imported)
             date = outcome.imported[-1].imported_at[:10]
-            self._set_inbox_banner(
-                self.inbox_banner,
-                "banner-success",
-                f"Pool updated from {names} \u2014 {total} players, {date}",
-            )
+            detail = "\n".join(f"{e.file}: {e.note}" for e in outcome.imported if e.note)
+            text = f"Pool updated from {names} \u2014 {total} players, {date}"
+            if detail:
+                text += f"\n{detail}"
+            self._set_inbox_banner(self.inbox_banner, "banner-success", text)
             self.inbox_undo_button.setVisible(True)
             self.apply_result(self.service.load_last())  # re-bridge names against the new pool
             self.pool_changed.emit()

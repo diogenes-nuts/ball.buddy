@@ -9,7 +9,10 @@ from ball_buddy.io.pool import inbox
 from ball_buddy.io.pool.importer import load_players
 
 FIXTURE = Path("tests/fixtures/hashtag_sample.html")
-SEED_CSV = "name,pos,team\nOLD PLAYER,X,NOP\n"
+# Seeded pool row uses a name from the fixture export so the reconcile
+# (scan now merges instead of replacing) replaces it wholesale: row count
+# stays 3 and the pre-import rank proves the Hashtag row won.
+SEED_CSV = "name,pos,team\nNikola Jokic,X,NOP\n"
 
 
 def _seed(data_dir: Path, old_csv: bool = True) -> None:
@@ -180,3 +183,67 @@ def test_inbox_dir_created_on_demand(tmp_path: Path) -> None:
     path = inbox.inbox_dir(tmp_path)
     assert path == tmp_path / "inbox"
     assert path.is_dir()
+
+
+# -- Yahoo snapshot reconciliation (P5 live half) --------------------------------
+
+
+def _snapshot_doc() -> dict:
+    """A minimal valid snapshot doc: rostered players + a stray Yahoo-only one."""
+    return {
+        "updated_at": "2026-01-01T00:00:00+00:00",
+        "user": {"guid": "g", "display_name": "d"},
+        "league": {"key": "l", "name": "L", "settings": {}},
+        "teams": [
+            {
+                "team_id": "1",
+                "name": "Red",
+                "players": [
+                    {"name": "Nikola Jokic", "positions": ["C"], "status": "ACTIVE"},
+                    {"name": "Stray Guy", "positions": ["PG"], "status": "ACTIVE"},
+                ],
+            }
+        ],
+        "draft": {"type": None, "pick_time": None, "time": None, "order": [], "results": []},
+        "schedule": [],
+        "standings": [],
+        "source": "live",
+    }
+
+
+def test_scan_appends_yahoo_snapshot_players(tmp_path: Path) -> None:
+    _seed(tmp_path)
+    _drop(tmp_path)
+    from ball_buddy.io.yahoo.snapshot import save_snapshot
+
+    save_snapshot(_snapshot_doc(), tmp_path / "snapshot.json")
+    outcome = inbox.scan_inbox(tmp_path)
+
+    assert len(outcome.imported) == 1
+    rows = load_players(tmp_path / "players.csv")
+    by_name = {r["name"]: r for r in rows}
+    # Rostered player covered by the export -> single Hashtag row, no dup.
+    assert sum(1 for r in rows if r["name"] == "Nikola Jokic") == 1
+    assert by_name["Nikola Jokic"]["source"] == "Hashtag"
+    # Rostered player absent everywhere -> appended Yahoo row, blank stats.
+    assert by_name["Stray Guy"]["source"] == "Yahoo"
+    assert by_name["Stray Guy"]["team"] == "Red"
+    assert by_name["Stray Guy"]["value"] == ""
+    # The reconcile summary (incl. the orphan) is stored on the entry.
+    assert "Stray Guy" in outcome.imported[0].note
+
+
+def test_scan_without_snapshot_still_imports(tmp_path: Path) -> None:
+    _seed(tmp_path)
+    _drop(tmp_path)
+    outcome = inbox.scan_inbox(tmp_path)  # no snapshot.json -> Yahoo side empty
+    assert len(outcome.imported) == 1
+    assert outcome.imported[0].note
+
+
+def test_scan_survives_corrupt_snapshot(tmp_path: Path) -> None:
+    _seed(tmp_path)
+    _drop(tmp_path)
+    (tmp_path / "snapshot.json").write_text("{not json", encoding="utf-8")
+    outcome = inbox.scan_inbox(tmp_path)  # must not raise
+    assert len(outcome.imported) == 1
