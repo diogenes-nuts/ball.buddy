@@ -140,6 +140,11 @@ class MainWindow(QMainWindow):
                 raise AssertionError(f"unhandled NAV_ITEMS label: {label!r}")
         stack.setCurrentIndex(NAV_ITEMS.index("Draft"))
         self.stack = stack
+        # A pool change (inbox import/undo in the League view) invalidates the
+        # draft board's cached pool: refresh the draft page to reload it.
+        stack.widget(NAV_ITEMS.index("League")).pool_changed.connect(  # type: ignore[union-attr]
+            stack.widget(NAV_ITEMS.index("Draft")).refresh  # type: ignore[union-attr]
+        )
         return stack
 
 

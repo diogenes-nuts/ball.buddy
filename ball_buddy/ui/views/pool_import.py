@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from ball_buddy.domain.naming import MatchReport, bridge
 from ball_buddy.domain.players import PlayerPool
+from ball_buddy.io.pool import inbox
 from ball_buddy.io.pool.importer import ImportError, parse_file, validate_rows, write_csv
 from ball_buddy.services.sync import SyncService
 
@@ -121,6 +122,10 @@ class PoolImportDialog(QWidget):
             self.warnings_label.setText("No warnings.")
 
         written = write_csv(parsed.rows, self.service.pool_path)
+        if inbox.in_inbox(self.service.data_dir, Path(path)):
+            # Dedupe: an inbox file imported manually is already current,
+            # so a later scan reports it unchanged instead of re-importing.
+            inbox.record_import(self.service.data_dir, Path(path), players=written)
         pool = PlayerPool.load(self.service.pool_path)
         report = bridge(self._roster_names(), pool.names(), self.service.load_aliases())
         self.last_report = report

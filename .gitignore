@@ -4,6 +4,8 @@ dist/
 build/
 .salvage/
 data/
+import.html
+import_files/
 %temp%pipcheck/
 data_tmp_check/
 node_modules/

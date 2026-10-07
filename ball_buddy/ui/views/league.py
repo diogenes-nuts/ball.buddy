@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import time
 from datetime import datetime
+from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QObject, Qt, QThread, QTimer, QUrl, Signal
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -30,6 +32,8 @@ from PySide6.QtWidgets import (
 )
 
 from ball_buddy.domain.league import LeagueConfig, snake_order
+from ball_buddy.io.pool import inbox
+from ball_buddy.io.pool.inbox import InboxOutcome
 from ball_buddy.services.sync import SyncResult, SyncService
 from ball_buddy.ui.views import _offline
 from ball_buddy.ui.views.pool_import import PoolImportDialog
@@ -141,6 +145,10 @@ class SettingsDialog(QDialog):
 class LeagueView(QWidget):
     """League page: header actions + status banners + teams/draft/schedule."""
 
+    # Emitted after a pool change (inbox import/undo) so the shell can
+    # invalidate the draft board's cached pool.
+    pool_changed = Signal()
+
     def __init__(self, service: SyncService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.service = service
@@ -181,6 +189,33 @@ class LeagueView(QWidget):
             header.addWidget(button)
         root.addLayout(header)
 
+        # Pool drop folder: path + open/rescan controls (P4 inbox auto-import).
+        pool_row = QHBoxLayout()
+        pool_row.setSpacing(8)
+        self.pool_path_label = QLabel(str(Path(service.data_dir) / "inbox"))
+        self.pool_path_label.setObjectName("secondary")
+        pool_row.addWidget(self.pool_path_label, 1)
+        open_inbox_button = QPushButton("Open inbox")
+        open_inbox_button.clicked.connect(self._open_inbox)
+        pool_row.addWidget(open_inbox_button)
+        self.rescan_button = QPushButton("Rescan inbox")
+        self.rescan_button.clicked.connect(self.rescan_inbox)
+        pool_row.addWidget(self.rescan_button)
+        root.addLayout(pool_row)
+
+        self.inbox_banner = QLabel("")
+        self.inbox_banner.setWordWrap(True)
+        self.inbox_banner.setVisible(False)
+        root.addWidget(self.inbox_banner)
+        undo_row = QHBoxLayout()
+        undo_row.setSpacing(8)
+        self.inbox_undo_button = QPushButton("Undo")
+        self.inbox_undo_button.clicked.connect(self._undo_inbox)
+        self.inbox_undo_button.setVisible(False)
+        undo_row.addWidget(self.inbox_undo_button)
+        undo_row.addStretch(1)
+        root.addLayout(undo_row)
+
         self.offline_banner = QLabel("")
         self.offline_banner.setObjectName("banner-info")
         self.offline_banner.setWordWrap(True)
@@ -211,6 +246,57 @@ class LeagueView(QWidget):
         last = service.load_last()
         self.apply_result(last)
         self._apply_manual_fallback()
+        # Launch scan: import any valid Hashtag exports left in data/inbox.
+        # The draft board is not built yet, so it loads the fresh pool for free;
+        # only a mid-session rescan needs the pool_changed invalidation signal.
+        self.rescan_inbox()
+
+    # -- pool inbox (P4) --------------------------------------------------------
+
+    def _open_inbox(self) -> None:
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(inbox.inbox_dir(self.service.data_dir))))
+
+    @staticmethod
+    def _set_inbox_banner(label: QLabel, object_name: str, text: str) -> None:
+        if label.objectName() != object_name:
+            label.setObjectName(object_name)
+            label.style().unpolish(label)
+            label.style().polish(label)
+        label.setText(text)
+        label.setVisible(bool(text))
+
+    def rescan_inbox(self) -> InboxOutcome:
+        """Scan data/inbox for new/changed exports; import or report the result."""
+        outcome = inbox.scan_inbox(self.service.data_dir)
+        if outcome.imported:
+            names = ", ".join(e.file for e in outcome.imported)
+            total = sum(e.players for e in outcome.imported)
+            date = outcome.imported[-1].imported_at[:10]
+            self._set_inbox_banner(
+                self.inbox_banner,
+                "banner-success",
+                f"Pool updated from {names} \u2014 {total} players, {date}",
+            )
+            self.inbox_undo_button.setVisible(True)
+            self.apply_result(self.service.load_last())  # re-bridge names against the new pool
+            self.pool_changed.emit()
+        elif outcome.errors:
+            detail = "; ".join(f"{e.file}: {e.message}" for e in outcome.errors)
+            self._set_inbox_banner(
+                self.inbox_banner, "banner-danger", f"Inbox import failed \u2014 {detail}"
+            )
+            self.inbox_undo_button.setVisible(False)
+        else:
+            self._set_inbox_banner(self.inbox_banner, "banner-info", "")
+            self.inbox_undo_button.setVisible(False)
+        return outcome
+
+    def _undo_inbox(self) -> None:
+        inbox.restore_prev_pool(self.service.data_dir)
+        self._set_inbox_banner(self.inbox_banner, "banner-info", "")
+        self.inbox_undo_button.setVisible(False)
+        self.apply_result(self.service.load_last())
+        self.pool_changed.emit()
 
     # -- panes -----------------------------------------------------------------
 

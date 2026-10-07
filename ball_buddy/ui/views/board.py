@@ -187,6 +187,7 @@ class DraftBoard(QWidget):
         """
         snapshot = self.service.effective_snapshot()
         if snapshot is None:
+            self._pool = PlayerPool.load(self.service.pool_path)  # keep pool current
             self.start_order = []
             self.snake = []
             self.picks = []
