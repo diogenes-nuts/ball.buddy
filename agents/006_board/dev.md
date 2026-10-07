@@ -40,15 +40,3 @@ right rail); roster panel shows ONE team at a time (default mine, dropdown to sw
 UI flag when not my team); use autodraft's scoring formula (0.45·market + 0.55·fit
 + tag adjustments, hole 1.25 / ok 1.0 / covered 0.75 multipliers, REACH/VALUE tags,
 value-gap flag) — replaces the P2 formula.
-
-### P7 — Draft Helper UI
-theme.py: percentile color helper (green/red/neutral gradient, TO flipped) used by
-EVERY stat cell in the app. New draft view layout (autodraft orientation): slim pick
-strip (R{r} · pick {n}/156 · {team} + search + Log + Undo); left main: available
-players table (pos filter, all 9 stats color-coded, per-row Log button); right rail:
-Recommendations (top-N default 10, adjustable 1–20, reasons verbatim, gap badge,
-REACH/VALUE chips); transposed My-Team-vs-League panel (cats as top row; rows: My
-team / League median / Gap / Tag; stats color-coded); single-team roster panel
-(dropdown, default my team, "not my team" flag). Snake grid + board.py pick grid
-REMOVED (pick model/persistence + undo stay — the strip drives them). Setup dialog
-unchanged.

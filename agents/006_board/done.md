@@ -82,3 +82,17 @@ P2's league-relative need + C1 scarcity as ADDITIONAL reason bits (they're still
 true); score itself is autodraft's. Keep the M2.3 fallback (no my_team → plain rank).
 Candidates enforce ownership (exclude drafted+active keepers; opted-out draftable).
 - Impl: domain/scorer.py (market/fit/tags/gap-flag; z from pool z_* cols; per-slot edge hole/ok/covered); P2 recommend_need_aware score replaced, need+scarcity kept as reason bits; board call-site swap only. Verify: 364 passed / 1 skipped, ruff clean; review PASS (3 non-blocking nitpicks left as-is).
+
+## 2026-10-07 — P7 — Draft Helper UI: snake grid removed; autodraft-oriented view (slim pick strip, color-coded available-players table w/ search+pos filter+Log, right recs rail top-1..20, transposed My-Team-vs-League panel, single-team roster panel w/ dropdown+not-mine flag); theme.py percentile stat-color helper (green/red/neutral, TO flipped) applied to all stat cells, light+dark
+### P7 — Draft Helper UI
+theme.py: percentile color helper (green/red/neutral gradient, TO flipped) used by
+EVERY stat cell in the app. New draft view layout (autodraft orientation): slim pick
+strip (R{r} · pick {n}/156 · {team} + search + Log + Undo); left main: available
+players table (pos filter, all 9 stats color-coded, per-row Log button); right rail:
+Recommendations (top-N default 10, adjustable 1–20, reasons verbatim, gap badge,
+REACH/VALUE chips); transposed My-Team-vs-League panel (cats as top row; rows: My
+team / League median / Gap / Tag; stats color-coded); single-team roster panel
+(dropdown, default my team, "not my team" flag). Snake grid + board.py pick grid
+REMOVED (pick model/persistence + undo stay — the strip drives them). Setup dialog
+unchanged.
+- Impl: board.py rewritten to the helper layout (grid deleted, pick model/persistence + undo + snake/keeper forfeits intact); theme.py stat-color helper (percentile-of-z, TO flipped, light+dark); relative panel transposed (cats as top row); roster panel single-team w/ dropdown + not-mine flag; recs rail top-N (settings rec_top_n, spin 1-20) w/ mkt/fit split + tag chips + verbatim reasons; available table model-based w/ search + pos filter + Log. Review fixes: dead _poolable_names removed, single tag-chip setBackground, blank z renders '' (not +0.0). Verify: every file passes individually; pre-existing offscreen combined-run 127 flake unchanged.
