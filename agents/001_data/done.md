@@ -21,3 +21,28 @@
 - Plugs: `inbox.scan_inbox` reconciles before write (headless → aliases empty; exact-normalized only, documented in docstring; summary per file in ImportedEntry.note); `pool_import.import_html` reconciles alias-aware, summary in status label (matched/ambiguous/unmatched tables unchanged).
 - `importer.py`: `source` added to FIELDNAMES after `value`; `_parse_table` stamps "Hashtag" (legacy rows default to "Hashtag" in reconcile); `validate_rows` unchanged (all stat checks are `if raw:`) — docstring notes blanks are tolerated.
 - Verify: tests/domain/test_reconcile.py (fixture builder: Jokic pos "C", dedupe, blank-name skip; synthetic G/F/G-F/UTIL labels; replace-ignoring-rank; alias swap; Yahoo-only survival across repeated imports; missing-yahoo append; orphans in summary; blank rows pass validate_rows + PlayerPool.load + _parse_rank→None). Existing inbox tests seed the pool with a fixture name so the replace path keeps row counts. 348 passed / 1 skipped, ruff clean.
+
+## 2026-10-07 — P5 — Pool reconcile (name-joined): Hashtag is projection authority (matched names replaced), Yahoo rostered players appended as blank-stat rows and survive re-imports; wired into inbox auto-import + manual import via snapshot players, loud replaced/new/kept/orphan report in the inbox banner
+### P5 — Reconcile Hashtag ∪ Yahoo (logic now, live when auth lands) — DONE
+
+Implemented as specified: pure merge in `ball_buddy/domain/reconcile.py`
+(Hashtag wins per player on the normalized-name join, aliases applied first,
+rank ignored; unmatched existing rows kept; Yahoo players absent everywhere
+appended via `make_yahoo_row`; `ReconcileReport` carries added/replaced/kept
+plus an `orphans` list surfaced in `summary_text()`). Wired into
+`inbox.scan_inbox` (headless: aliases empty, exact-normalized join — see its
+docstring; Yahoo side from the last saved `snapshot.json` roster) and
+`pool_import.import_html` (alias-aware; Yahoo side from the live snapshot if
+present; summary in the status label, also surfaced in the League inbox
+banner via `ImportedEntry.note`). `importer.FIELDNAMES` gained `source`;
+FA pool stays out of scope until auth. Tests: `tests/domain/test_reconcile.py` (builder + synthetic
+G/F/G-F/UTIL label map, replace/alias/keep/add/orphan/blank-stats cases).
+- Hashtag is projection authority: on Hashtag import, bridged-matched names are
+  REPLACED with fresh rows (name join via naming + aliases.json — never rank).
+- Yahoo rows survive: sync (when auth works) appends known players (rosters + FA
+  pool) absent from the pool — name/pos/team, blank stats, rank None, value blank
+  (UI "—", engine zeros). Later Hashtag imports MERGE: Hashtag wins on matches,
+  Yahoo rows kept, nothing silently deleted.
+- Loud reporting: added/replaced/kept-orphan counts + orphans in the existing
+  unmatched report. Test against a mock Yahoo doc (offline).
+- Impl: domain/reconcile.py (reconcile_pool pure + yahoo_players_from_snapshot builder); wired into io/pool/inbox.py scan_inbox + pool_import.py import_html (snapshot-backed Yahoo side, offline-safe no-op); report in league.py inbox banner; blank value renders '—' in board. FA pool out of scope until auth. Verify: 351 passed / 1 skipped, ruff clean; review PASS.
