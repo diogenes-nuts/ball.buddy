@@ -32,8 +32,17 @@ def stat_row(
     fga_pg: float = 15,
     ft_pct: float = 0.75,
     fta_pg: float = 5,
+    z_pts: float = 0.0,
+    z_reb: float = 0.0,
+    z_ast: float = 0.0,
+    z_stl: float = 0.0,
+    z_blk: float = 0.0,
+    z_to: float = 0.0,
+    z_three: float = 0.0,
+    z_fg_pct: float = 0.0,
+    z_ft_pct: float = 0.0,
 ) -> dict[str, str]:
-    """A full canonical FIELDNAMES row (name/pos/rank/value + 9 stats + gp)."""
+    """A full canonical FIELDNAMES row (name/pos/rank/value + 9 stats + gp + z)."""
     return {
         "name": name,
         "pos": pos,
@@ -51,6 +60,15 @@ def stat_row(
         "ft_pct": str(ft_pct),
         "fta_pg": str(fta_pg),
         "three_pg": str(three_pg),
+        "z_pts": str(z_pts),
+        "z_reb": str(z_reb),
+        "z_ast": str(z_ast),
+        "z_stl": str(z_stl),
+        "z_blk": str(z_blk),
+        "z_to": str(z_to),
+        "z_three": str(z_three),
+        "z_fg_pct": str(z_fg_pct),
+        "z_ft_pct": str(z_ft_pct),
     }
 
 
@@ -134,12 +152,13 @@ def test_need_aware_fallback_without_my_team():
 
 
 def test_need_aware_unranked_row_reason():
-    # P2 path (my team known, no stat cells): unranked rows sort after
-    # ranked ones and their reason reports the missing value, not a rank.
+    # P6 path (my team known, no stat cells): unranked rows sort after
+    # ranked ones and their reason reports the missing rank, not a rank.
     rows = [row("Zed", ""), row("Beta", "1", "90")]
     result = recommend_need_aware(rows, set(), {"Me": []}, my_team="Me")
     assert [s.name for s in result] == ["Beta", "Zed"]
-    assert result[1].reason == "no pool value"
+    assert "mkt unrated" in result[1].reason
+    assert "no ADP" in result[1].reason
 
 
 def test_fallback_unranked_reason_via_rejecting_my_team():
@@ -150,23 +169,25 @@ def test_fallback_unranked_reason_via_rejecting_my_team():
 
 
 def test_need_aware_beats_raw_value():
-    # Me is dead last at pts AND blk (league-normalized gap 1.0 in both);
-    # every other category is identical league-wide (gap 0). A
-    # slightly-lower-value candidate who fills both categories (need 2.0)
-    # must outrank the higher-value candidate who fills neither.
+    # Me is dead last at pts AND blk in the pool z (hole in both); every
+    # other category is identical league-wide. A lower-rank candidate with
+    # strong pts/blk z (the fit) must outrank the higher-rank candidate
+    # who is blank in both, and the P2 fill bits still name the filled cats.
     teams = {
-        "Me": [stat_row("M1", pts_pg=10, blk_pg=0)],
+        "Me": [stat_row("M1", pts_pg=10, blk_pg=0, z_pts=-1, z_blk=-1)],
         "T2": [stat_row("T21", pts_pg=25, blk_pg=1)],
         "T3": [stat_row("T31", pts_pg=25, blk_pg=1)],
         "T4": [stat_row("T41", pts_pg=25, blk_pg=1)],
     }
     pool = [
         stat_row("HighVal", rank="1", value="100", pts_pg=0, blk_pg=0),
-        stat_row("NeedFill", rank="2", value="99", pts_pg=25, blk_pg=1),
+        stat_row("NeedFill", rank="2", value="99", pts_pg=25, blk_pg=1,
+                 z_pts=1, z_blk=1),
     ]
     result = recommend_need_aware(pool, set(), teams, my_team="Me")
     assert [s.name for s in result] == ["NeedFill", "HighVal"]
-    assert "value 99" in result[0].reason
+    assert "mkt 2/2" in result[0].reason
+    assert "holes pts, blk" in result[0].reason
     assert "fills pts & blk gaps" in result[0].reason
     assert "fills" not in result[1].reason  # fills nothing
 
@@ -176,14 +197,14 @@ def test_need_aware_to_direction():
     # spread 210 -> gap 0.75). A low-TO candidate fills the gap; a
     # high-TO candidate (league-worst) fills nothing.
     teams = {
-        "Me": [stat_row("M1", to_pg=4)],
-        "T2": [stat_row("T21", to_pg=2)],
-        "T3": [stat_row("T31", to_pg=1.5)],
-        "T4": [stat_row("T41", to_pg=1)],
+        "Me": [stat_row("M1", to_pg=4, z_to=1)],
+        "T2": [stat_row("T21", to_pg=2, z_to=0.5)],
+        "T3": [stat_row("T31", to_pg=1.5, z_to=0.25)],
+        "T4": [stat_row("T41", to_pg=1, z_to=0)],
     }
     pool = [
-        stat_row("Clumsy", rank="1", value="50", to_pg=3),
-        stat_row("CleanHands", rank="2", value="50", to_pg=0.5),
+        stat_row("Clumsy", rank="1", value="50", to_pg=3, z_to=0.5),
+        stat_row("CleanHands", rank="2", value="50", to_pg=0.5, z_to=-0.5),
     ]
     result = recommend_need_aware(pool, set(), teams, my_team="Me")
     assert [s.name for s in result] == ["CleanHands", "Clumsy"]
@@ -232,7 +253,7 @@ def test_need_aware_bias_cancellation():
 def test_need_aware_reason_names_filled_cat():
     # The reason string names the engine CAT key that is actually filled.
     teams = {
-        "Me": [stat_row("M1", to_pg=4)],
+        "Me": [stat_row("M1", to_pg=4, z_to=1)],
         "T2": [stat_row("T21", to_pg=1)],
         "T3": [stat_row("T31", to_pg=1)],
         "T4": [stat_row("T41", to_pg=1)],
@@ -243,17 +264,18 @@ def test_need_aware_reason_names_filled_cat():
     assert "pts" not in s.reason  # no pts gap -> pts never named
 
 
-def test_need_aware_zero_value_reason():
-    # A real value cell of "0" is distinct from a blank cell: it shows
-    # "value 0", not "no pool value".
+def test_need_aware_value_cell_passthrough():
+    # A real value cell of "0" is distinct from a blank cell in the
+    # Suggestion (the UI column); the reason is the P6 bits in both.
     rows = [
         row("Zeroed", rank="1", value="0"),
         row("Blank", rank="2", value=""),
     ]
     teams = {"Me": []}
     result = recommend_need_aware(rows, set(), teams, my_team="Me")
-    assert "value 0" in result[0].reason
-    assert result[1].reason == "no pool value"
+    assert result[0].value == "0"
+    assert result[1].value == ""
+    assert result[0].reason != result[1].reason
 
 
 def test_cat_fill_clamped_to_unit_interval():

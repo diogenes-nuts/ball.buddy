@@ -1,4 +1,4 @@
-"""Need-aware pool recommender (P2: B + C1) with the M2.3 top-N fallback.
+"""Need-aware pool recommender (M2.3 fallback + P6 market/fit scoring).
 
 Two modes:
 
@@ -11,36 +11,37 @@ Two modes:
   order) and carry ``rank=None`` so the UI shows "—" instead of a display
   rank that could collide with a real pool rank. A blank ``value``
   displays as "".
-- **P2 need-aware** (``recommend_need_aware``): scores each candidate
-  (a) pool value, (b) league-relative CATEGORY need of MY team — the 9
-  H2H categories, projected via the same engine
-  (``engine.project_roster`` / ``project_player``) as matchup projections,
-  so any systematic bias in the pool's stats cancels — and (c) C1
-  positional scarcity: the remaining (undrafted, unkept) pool count for
-  the candidate's primary position vs the median across positions.
-  Facts, not prediction. Every suggestion carries a human-readable
-  ``reason`` string for the board panel.
+- **P6 need-aware** (``recommend_need_aware``): orders candidates with
+  ``scorer.score_pool`` — the market / hole-covered fit / REACH-VALUE tag
+  composite on the pool's own ``rank`` and signed ``z_*`` columns (see
+  ``ball_buddy.domain.scorer``) — for MY current pick, then appends the
+  P2 reason bits per candidate: (a) the league-relative CATEGORY gaps of
+  MY team that the candidate actually fills (the 9 H2H categories,
+  projected via the same engine ``engine.project_roster`` /
+  ``engine.project_player`` as matchup projections, so any systematic
+  bias in the pool's stats cancels) and (b) C1 positional scarcity: the
+  remaining (undrafted, unkept) pool count for the candidate's primary
+  position vs the median across positions. Facts, not prediction. Every
+  suggestion carries a human-readable ``reason`` string for the board
+  panel.
 
-Need is CATEGORY-level, not position-level: this is a 9-category H2H
-game, and the question is per category — is my category strength
-competitive, is my weakness salvageable? For each cat:
+The fill bits are CATEGORY-level, not position-level: this is a
+9-category H2H game, and the question is per category — is my category
+strength competitive, is my weakness salvageable? For each cat:
 ``gap = median_across_teams − mine`` in the better direction (``to`` is
 lower-is-better, per ``engine.DIRECTIONS``), normalized by the league
 ``spread = max − min`` (0 → treated as 1). A candidate's fill for a cat
 is its own season value normalized the same way (for ``to``: quality is
 low turnovers, so fill = ``1 − player/spread``). Per-cat filled amount is
-``max(0, min(gap_norm, fill_norm))``; the candidate's need is the sum
-over the 9 cats (in [0, 9]).
-
-Score per candidate = value + ``NEED_WEIGHT`` * need +
-``SCARCITY_WEIGHT`` * scarcity (weights are module constants, tunable
-draft-day). Fallback applies when ``teams`` is empty, ``my_team`` is
-blank, or the set my-team name is not a known team — the recommender
-degrades to the M2.3 ranking instead of crashing. Exclusions are
-identical in both modes (drafted + active keepers; opted-out keepers
-stay draftable). All secured players count in a team's projection (draft
-picks + active keepers — no starter/bench distinction). Pure and
-stdlib-only (plus the domain engine).
+``max(0, min(gap_norm, fill_norm))``; the reason names the top-2
+categories by filled amount. Fill and scarcity bits are reasons only —
+the ordering comes from the P6 composite score. Fallback applies when
+``teams`` is empty, ``my_team`` is blank, or the set my-team name is not
+a known team — the recommender degrades to the M2.3 ranking instead of
+crashing. Exclusions are identical in both modes (drafted + active
+keepers; opted-out keepers stay draftable). All secured players count in
+a team's projection (draft picks + active keepers — no starter/bench
+distinction). Pure and stdlib-only (plus the domain engine + scorer).
 """
 
 from __future__ import annotations
@@ -56,19 +57,14 @@ from ball_buddy.domain.engine import (
     project_roster,
 )
 
-# Draft-day tunables: weight of the category-need and C1-scarcity terms
-# relative to the pool value term.
-NEED_WEIGHT = 1.0
-SCARCITY_WEIGHT = 1.0
-
 
 @dataclass(frozen=True)
 class Suggestion:
     """One suggested pool player; ``value`` is the raw display string.
 
     ``rank`` is ``None`` for rows with a blank/unparseable rank cell.
-    ``reason`` explains the score (P2) — empty only in the M2.3
-    fallback, which the UI treats as "plain pool ranking".
+    ``reason`` explains the score (P6 composite + P2 bits) — empty only in
+    the M2.3 fallback, which the UI treats as "plain pool ranking".
     """
 
     name: str
@@ -187,7 +183,7 @@ def category_gaps(
         spreads[cat] = spread
     # Note: teams with no secured players project to all zeros (engine
     # behaviour), which inflates every category's spread — most visibly the
-    # pct categories (0 vs ~0.48) — so the need-aware signal is diluted
+    # pct categories (0 vs ~0.48) — so the fill-bit signal is diluted
     # pre-draft, when most rosters are still empty. Intentional (empty
     # teams still count toward the league median); it recovers as picks
     # are entered.
@@ -214,33 +210,50 @@ def recommend_need_aware(
     teams: dict[str, list[dict[str, str]]] | None,
     my_team: str = "",
     top_n: int = 5,
+    overall: int = 0,
+    team_count: int = 0,
 ) -> list[Suggestion]:
-    """P2: need-aware scoring for MY current pick, with reason strings.
+    """P6: market/fit/tag scoring for MY current pick, with reason strings.
 
     ``rows`` is the whole pool; ``excluded`` the drafted + active-keeper
     names (caller-computed). ``teams`` maps every team name to the pool
     rows of its SECURED players (draft picks + active keepers — all count;
     no starter/bench). ``my_team`` is ``settings["my_team"]``.
+    ``overall`` is the current pick's 1-based snake index and
+    ``team_count`` the start-order length (both feed the scorer's tag
+    boundaries and value-gap threshold; 0 = no draft context, where the
+    tag adjustment is a flat offset — harmless to ordering — and the gap
+    floor is unadjusted).
 
-    Score per candidate = pool value + NEED_WEIGHT * need +
-    SCARCITY_WEIGHT * scarcity. need = sum over the 9 categories of
-    max(0, min(g_c, f_c)) — the league-normalized category gap I'm behind
-    in (gap_c: median team vs my team, better direction, / spread) that
-    the candidate's own season value actually fills (f_c: candidate /
-    spread; for ``to``: 1 − candidate / spread). scarcity = C1:
-    max(0, median remaining pool count across positions − remaining
-    count at the candidate's primary position). Sorts by score desc,
-    then rank asc (unranked last), then row order.
+    Ordering is ``scorer.score_pool`` (market + hole/covered fit on
+    signed pool z + REACH/VALUE tag composite). The P2 bits are appended
+    to each reason, never scored: the top-2 category gaps the candidate
+    fills (gap_c: median team vs my team, better direction, / spread;
+    f_c: candidate / spread; for ``to``: 1 − candidate / spread) and the
+    C1 scarcity bit (remaining pool count at the candidate's primary
+    position below the position median).
 
-    Efficient: each team's secured rows are projected once per call;
-    each candidate row is projected once (cached by row index) and its
-    9 cat values reused.
+    Efficient: each team's secured rows are projected once per call; each
+    candidate is projected once (cached by name) for the fill bits.
 
     Falls back to the M2.3 ranking (with reasons) when ``teams`` is
     empty, ``my_team`` is blank, or unknown — never crashes.
     """
     if not teams or not my_team or my_team not in teams:
         return _fallback(rows, excluded, top_n)
+
+    from ball_buddy.domain import scorer  # local: scorer imports Suggestion here
+
+    candidate_rows = [
+        row
+        for row in rows
+        if (row.get("name") or "").strip() and (row.get("name") or "").strip() not in excluded
+    ]
+    base = scorer.score_pool(
+        candidate_rows, teams[my_team], overall, team_count, top_n=top_n
+    )
+    if not base:
+        return []
 
     projections = {
         team: project_roster(team_rows, team) for team, team_rows in teams.items()
@@ -249,69 +262,49 @@ def recommend_need_aware(
 
     # C1: remaining (undrafted, unkept) pool count per primary position.
     remaining: dict[str, int] = {}
-    for row in rows:
-        name = (row.get("name") or "").strip()
-        if not name or name in excluded:
-            continue
+    for row in candidate_rows:
         pos = _primary_pos(row.get("pos", ""))
         remaining[pos] = remaining.get(pos, 0) + 1
     counts_median = median(remaining.values()) if remaining else 0.0
 
-    player_cache: dict[int, PlayerProjection] = {}
-    entries: list[tuple] = []
-    for index, row in enumerate(rows):
-        name = (row.get("name") or "").strip()
-        if not name or name in excluded:
-            continue
-        pos = _primary_pos(row.get("pos", ""))
-        raw_value = (row.get("value", "") or "").strip()
-        value = _parse_value(raw_value) or 0.0
-        rank = _parse_rank(row.get("rank", ""))
+    name_to_row: dict[str, dict[str, str]] = {}
+    for row in candidate_rows:
+        name_to_row.setdefault((row.get("name") or "").strip(), row)
 
-        player = player_cache.setdefault(index, project_player(row))
+    player_cache: dict[str, PlayerProjection] = {}
+    out: list[Suggestion] = []
+    for suggestion in base:
+        row = name_to_row.get(suggestion.name)
+        if row is None:
+            out.append(suggestion)
+            continue
+        player = player_cache.setdefault(suggestion.name, project_player(row))
         filled = {
             cat: max(0.0, min(gaps[cat], cat_fill(cat, player.values[cat], spreads[cat])))
             for cat in CATS
         }
-        need = sum(filled.values())
-        scarcity = max(0.0, counts_median - remaining.get(pos, 0))
-        score = value + NEED_WEIGHT * need + SCARCITY_WEIGHT * scarcity
-
-        # blank value cell -> "no pool value"; a real 0.0 shows "value 0"
-        bits = [f"value {_fmt(value)}" if raw_value else "no pool value"]
+        bits: list[str] = []
         filling = [cat for cat in CATS if filled[cat] > 0]
         if filling:
             top_cats = sorted(filling, key=lambda c: filled[c], reverse=True)[:2]
             bits.append("fills " + " & ".join(top_cats) + " gaps")
+        pos = _primary_pos(row.get("pos", ""))
+        scarcity = max(0.0, counts_median - remaining.get(pos, 0))
         if scarcity > 0:
             bits.append(
                 f"only {remaining.get(pos, 0)} {pos} left (median "
                 f"{_fmt(counts_median)} per position)"
             )
-        entries.append(
-            (
-                -score,
-                1 if rank is None else 0,
-                rank or 0,
-                index,
-                Suggestion(
-                    name=name,
-                    pos=(row.get("pos", "") or "").strip(),
-                    value=(row.get("value", "") or "").strip(),
-                    rank=rank,
-                    reason=" · ".join(bits),
-                ),
+        if bits:
+            suggestion = replace(
+                suggestion, reason=suggestion.reason + " · " + " · ".join(bits)
             )
-        )
-
-    entries.sort(key=lambda entry: entry[:4])
-    return [entry[4] for entry in entries[:top_n]]
+        out.append(suggestion)
+    return out
 
 
 __all__ = [
     "Suggestion",
-    "NEED_WEIGHT",
-    "SCARCITY_WEIGHT",
     "recommend",
     "recommend_need_aware",
     "category_gaps",

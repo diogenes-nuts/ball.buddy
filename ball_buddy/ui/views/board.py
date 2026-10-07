@@ -317,7 +317,8 @@ class DraftBoard(QWidget):
             self.suggest_title.setText("Suggested pool players —")
             grid.setRowCount(0)
             return
-        if picks_mod.current_pick(self.snake, self.picks) is None:
+        current = picks_mod.current_pick(self.snake, self.picks)
+        if current is None:
             self.suggest_title.setText("Suggested pool players — draft complete")
             grid.setRowCount(0)
             return
@@ -326,6 +327,8 @@ class DraftBoard(QWidget):
             self._excluded_names(report),
             self._team_projections(report),
             my_team=str(self.service.settings().get("my_team", "")),
+            overall=current.overall,
+            team_count=len(self.start_order),
         )
         self.suggest_title.setText(f"Suggested pool players (top {len(suggestions)})")
         grid.setRowCount(len(suggestions))
