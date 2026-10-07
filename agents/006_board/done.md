@@ -67,3 +67,18 @@ Per 9 categories: my team projection vs league distribution (all teams from pick
 far), with BUILD / COAST / PUNT tags. Live as picks are entered. (Tag thresholds
 defined by planner from the league-relative distribution, e.g. percentile-based.)
 - Impl: domain/relative.py category_tags (top_n=3 / bottom_n=3 / punt_close=0.25, 'to' direction handled, pre-draw COAST fallback, no-my-team → hidden); P2 helpers promoted public (category_gaps / cat_fill); board panel wired to the same refresh as the suggest panel. Verify: 321 passed / 1 skipped, ruff clean; review PASS, zero defects.
+
+## 2026-10-07 — P6 — Scorer port: autodraft ValueGapScorer (0.45 market + 0.55 fit, hole/ok/covered multipliers, REACH/VALUE tags, value-gap flag) in domain/scorer.py; P2 need/scarcity demoted to reason bits; M2.3 fallback kept
+### P6 — Scorer port (domain, offline-testable)
+Port autodraft engine/scoring.py ValueGapScorer + needs.py edge math to ball_buddy
+domain (new module or extend recommend.py; read the autodraft sources for the exact
+formulas): market = (rankMax − rank)/rankMax; fit = Σ weight·z·multiplier over 9 cats
+using the pool's z_* columns (blank z → 0, player excluded from fit contribution);
+per-category edge = roster signed-z mean per slot vs pool mean, status hole/ok/covered
+(covered ≥ +0.5z — re-derive thresholds against our 9-cat pool, document); score =
+0.45·market + 0.55·fit_norm + tag adjustments (REACH/VALUE vs ADP-vs-overall-pick,
+±0.10); value-gap flag (top-decile rank, ADP > 2 rounds past decile floor). Keep
+P2's league-relative need + C1 scarcity as ADDITIONAL reason bits (they're still
+true); score itself is autodraft's. Keep the M2.3 fallback (no my_team → plain rank).
+Candidates enforce ownership (exclude drafted+active keepers; opted-out draftable).
+- Impl: domain/scorer.py (market/fit/tags/gap-flag; z from pool z_* cols; per-slot edge hole/ok/covered); P2 recommend_need_aware score replaced, need+scarcity kept as reason bits; board call-site swap only. Verify: 364 passed / 1 skipped, ruff clean; review PASS (3 non-blocking nitpicks left as-is).
