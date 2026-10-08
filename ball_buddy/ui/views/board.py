@@ -21,6 +21,7 @@ percentile band is uncolored.
 from __future__ import annotations
 
 import re
+from statistics import median
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QBrush, QColor
@@ -28,6 +29,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QCompleter,
+    QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
@@ -147,6 +149,14 @@ class PlayerTableModel(QAbstractTableModel):
         row = self._visible[index.row()]
         col = index.column()
         if col < len(self.BASE_COLUMNS):
+            # text cells: Display/Edit ONLY — returning text for every role
+            # leaked into CheckStateRole, which made digit cells (rank "1",
+            # "2") render with checkbox indicators
+            if role not in (
+                Qt.ItemDataRole.DisplayRole,
+                Qt.ItemDataRole.EditRole,
+            ):
+                return None
             key = ("name", "pos", "value", "rank")[col]
             return (row.get(key, "") or "").strip()
         if role == Qt.ItemDataRole.DisplayRole:
@@ -230,12 +240,10 @@ class DraftBoard(QWidget):
         self.alert_banner.setVisible(False)
         root.addWidget(self.alert_banner)
 
-        main_row = QVBoxLayout()
-        root.addLayout(main_row, 1)
+        # Single full-width column; the former right rail (recommendations)
+        # is now a module above Comparison so horizontal space is not wasted.
         left = QVBoxLayout()
-        right = QVBoxLayout()
-        main_row.addLayout(left, 1)
-        main_row.addLayout(right, 0)
+        root.addLayout(left, 1)
 
         left_panel = QWidget()
         left_panel.setObjectName("panel")
@@ -244,51 +252,42 @@ class DraftBoard(QWidget):
         inner.setContentsMargins(8, 8, 8, 8)
         inner.setSpacing(8)
 
-        # --- current-pick strip ------------------------------------------------
-        strip = QVBoxLayout()
+        # --- current-pick strip (one horizontal row: label, entry, buttons) ---
+        strip_row = QHBoxLayout()
         self.current_label = QLabel("")
         self.current_label.setObjectName("secondary")
-        strip.addWidget(self.current_label)
+        strip_row.addWidget(self.current_label, 0)
 
-        controls = QVBoxLayout()
         self.name_edit = QLineEdit()
         self.name_edit.setPlaceholderText("player name (or double-click the table)")
-        controls.addWidget(self.name_edit)
+        strip_row.addWidget(self.name_edit, 1)
 
-        buttons = QVBoxLayout()
-        buttons.setSpacing(4)
         self.commit_button = QPushButton("Commit pick")
         self.commit_button.setProperty("ink", "true")
         self.commit_button.clicked.connect(self._commit)
         self.name_edit.returnPressed.connect(self._commit)
-        buttons.addWidget(self.commit_button)
+        strip_row.addWidget(self.commit_button, 0)
         self.log_button = QPushButton("Log selected")
         self.log_button.clicked.connect(self.log_selected)
-        buttons.addWidget(self.log_button)
+        strip_row.addWidget(self.log_button, 0)
         self.undo_button = QPushButton("Undo last")
         self.undo_button.clicked.connect(self.undo)
-        buttons.addWidget(self.undo_button)
+        strip_row.addWidget(self.undo_button, 0)
         self.setup_button = QPushButton("Setup…")
         self.setup_button.clicked.connect(self.setup_requested.emit)
-        buttons.addWidget(self.setup_button)
-        controls.addLayout(buttons)
-
-        strip_row = QVBoxLayout()
-        strip_row.addLayout(strip)
-        strip_row.addLayout(controls)
+        strip_row.addWidget(self.setup_button, 0)
         inner.addLayout(strip_row, 0)
 
         # --- available players (model-based table + POS filter) ----------------
-        filter_row = QVBoxLayout()
-        pos_row = QVBoxLayout()
+        filter_row = QHBoxLayout()
         pos_label = QLabel("Pos")
         pos_label.setObjectName("secondary")
+        filter_row.addWidget(pos_label, 0)
         self.pos_combo = QComboBox()
         self.pos_combo.setCurrentText("All")
         self.pos_combo.currentTextChanged.connect(self._pos_filter_changed)
-        pos_row.addWidget(pos_label)
-        pos_row.addWidget(self.pos_combo)
-        filter_row.addLayout(pos_row)
+        filter_row.addWidget(self.pos_combo, 0)
+        filter_row.addStretch(1)
         inner.addLayout(filter_row, 0)
 
         self._player_model = PlayerTableModel(
@@ -306,17 +305,59 @@ class DraftBoard(QWidget):
             QAbstractItemView.EditTrigger.NoEditTriggers
         )
         self.player_view.verticalHeader().setVisible(False)
+        # Name stretches to fill the leftover width (longest, most important
+        # text — ResizeToContents under-measures it with the stylesheet's
+        # mono font and clips); the rest size to their content
+        self.player_view.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch
+        )
+        for _ci in range(1, self._player_model.columnCount()):
+            self.player_view.horizontalHeader().setSectionResizeMode(
+                _ci, QHeaderView.ResizeMode.ResizeToContents
+            )
         self.player_view.doubleClicked.connect(self._double_clicked)
         inner.addWidget(self.player_view, 1)
 
-        # --- relative panel: my team vs the league (P3) ------------------------
+        # --- recommendations (module above Comparison; was the right rail) ----
+        self.recs_title = QLabel("Recommendations —")
+        self.recs_title.setObjectName("title")
+        inner.addWidget(self.recs_title, 0)
+        top_row = QHBoxLayout()
+        top_label = QLabel("Top")
+        top_label.setObjectName("secondary")
+        top_row.addWidget(top_label, 0)
+        self.top_n_spin = QSpinBox()
+        self.top_n_spin.setRange(1, 20)
+        self.top_n_spin.setValue(int(self.service.settings().get("rec_top_n", 10)))
+        self.top_n_spin.valueChanged.connect(self._top_n_changed)
+        top_row.addWidget(self.top_n_spin, 0)
+        top_row.addStretch(1)
+        inner.addLayout(top_row, 0)
+        self.recs_grid = QTableWidget(0, 5)
+        self.recs_grid.setHorizontalHeaderLabels(
+            ["#", "Player", "Tag", "mkt / fit", "Reason"]
+        )
+        self.recs_grid.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.recs_grid.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.recs_grid.verticalHeader().setVisible(False)
+        # content-width columns; Reason eats the leftover horizontal space
+        for _ci in range(4):
+            self.recs_grid.horizontalHeader().setSectionResizeMode(
+                _ci, QHeaderView.ResizeMode.ResizeToContents
+            )
+        self.recs_grid.horizontalHeader().setSectionResizeMode(
+            4, QHeaderView.ResizeMode.Stretch
+        )
+        inner.addWidget(self.recs_grid, 0)
+
+        # --- comparison panel: my team vs the league (P3) ----------------------
         self.relative_panel = QWidget()
         self.relative_panel.setObjectName("panel")
         left.addWidget(self.relative_panel, 0)
         relative_inner = QVBoxLayout(self.relative_panel)
         relative_inner.setContentsMargins(8, 8, 8, 8)
         relative_inner.setSpacing(4)
-        self.relative_title = QLabel("My team vs league")
+        self.relative_title = QLabel("Comparison")
         self.relative_title.setObjectName("title")
         relative_inner.addWidget(self.relative_title)
         self.relative_grid = QTableWidget(4, len(CAT_Z_COLUMN))
@@ -329,7 +370,7 @@ class DraftBoard(QWidget):
         self.relative_grid.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.relative_grid.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.relative_grid.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
+            QHeaderView.ResizeMode.ResizeToContents
         )
         relative_inner.addWidget(self.relative_grid, 0)
         self.relative_panel.setVisible(False)
@@ -366,42 +407,10 @@ class DraftBoard(QWidget):
         self.roster_grid.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.roster_grid.verticalHeader().setVisible(False)
         self.roster_grid.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
+            QHeaderView.ResizeMode.ResizeToContents
         )
         roster_inner.addWidget(self.roster_grid, 0)
         self.roster_panel.setVisible(False)
-
-        # --- recommendations rail (right) ---------------------------------------
-        rail_panel = QWidget()
-        rail_panel.setObjectName("panel")
-        right.addWidget(rail_panel, 1)
-        rail_inner = QVBoxLayout(rail_panel)
-        rail_inner.setContentsMargins(8, 8, 8, 8)
-        rail_inner.setSpacing(4)
-        self.recs_title = QLabel("Recommendations —")
-        self.recs_title.setObjectName("title")
-        rail_inner.addWidget(self.recs_title)
-        top_row = QVBoxLayout()
-        top_label = QLabel("Top")
-        top_label.setObjectName("secondary")
-        self.top_n_spin = QSpinBox()
-        self.top_n_spin.setRange(1, 20)
-        self.top_n_spin.setValue(int(self.service.settings().get("rec_top_n", 10)))
-        self.top_n_spin.valueChanged.connect(self._top_n_changed)
-        top_row.addWidget(top_label)
-        top_row.addWidget(self.top_n_spin)
-        rail_inner.addLayout(top_row, 0)
-        self.recs_grid = QTableWidget(0, 5)
-        self.recs_grid.setHorizontalHeaderLabels(
-            ["#", "Player", "Tag", "mkt / fit", "Reason"]
-        )
-        self.recs_grid.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.recs_grid.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self.recs_grid.verticalHeader().setVisible(False)
-        self.recs_grid.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
-        )
-        rail_inner.addWidget(self.recs_grid, 1)
 
         self.refresh()
 
@@ -558,7 +567,8 @@ class DraftBoard(QWidget):
     def _render_recs(self, report) -> None:
         """Recommendations rail: P6 scorer ordering with tag chips, a
         mkt/fit summary parsed from the scorer's reason bits, a value-gap
-        badge, the verbatim reason, and the top-N spin (persisted)."""
+        badge, the list of need cats each player helps (em dash when
+        unknown), and the top-N spin (persisted)."""
         grid = self.recs_grid
         grid.setRowCount(0)
         if not self.start_order or report is None:
@@ -602,7 +612,9 @@ class DraftBoard(QWidget):
                 tag_item.setForeground(_brush(theme["info_text"]))
             grid.setItem(r, 2, tag_item)
             grid.setItem(r, 3, QTableWidgetItem(self._mkfit(suggestion)))
-            grid.setItem(r, 4, QTableWidgetItem(suggestion.reason))
+            grid.setItem(
+                r, 4, QTableWidgetItem(", ".join(suggestion.cats) or "\u2014")
+            )
 
     @staticmethod
     def _tag_label(suggestion: Suggestion) -> str:
@@ -615,6 +627,17 @@ class DraftBoard(QWidget):
         if suggestion.tag == "ON":
             return "on board"
         return "—"
+
+    @staticmethod
+    def _gp(team_rows) -> float:
+        """Games played across a team's secured pool rows (0 if absent)."""
+        total = 0.0
+        for row in team_rows:
+            try:
+                total += float(row.get("gp") or 0)
+            except (TypeError, ValueError):
+                continue
+        return total
 
     @staticmethod
     def _mkfit(suggestion: Suggestion) -> str:
@@ -652,29 +675,46 @@ class DraftBoard(QWidget):
             self.relative_panel.setVisible(False)
             return
         self.relative_panel.setVisible(True)
-        self.relative_title.setText(f"My team vs league — {my_team}")
-        # league spread per cat (for the gap-row color normalization)
+        self.relative_title.setText(f"Comparison — {my_team}")
+        # per-game values: season totals scaled by each team's games played
+        # (pct cats are already rates); the league spread normalizes the
+        # gap color (z-score-ish input per ``stat_color``)
+        team_rows = self._team_projections(report)
         projections = {
             team: project_roster(team_rows, team)
-            for team, team_rows in self._team_projections(report).items()
+            for team, team_rows in team_rows.items()
         }
+        gps = {team: self._gp(team_rows) for team, team_rows in team_rows.items()}
         grid = self.relative_grid
         theme_name = self._theme_name()
         for c, tag in enumerate(tags):
-            pct = tag.cat in PCT_CATS
-            mine = f"{tag.mine:.4f}" if pct else f"{tag.mine:.1f}"
-            med = f"{tag.median:.4f}" if pct else f"{tag.median:.1f}"
-            gap = f"{tag.gap:+.4f}" if pct else f"{tag.gap:+.1f}"
-            for r, text in enumerate([mine, med, gap, tag.tag]):
+            cat = tag.cat
+            pct = cat in PCT_CATS
+            per_game = {}
+            for team in projections:
+                value = projections[team].cat_values[cat]
+                if not pct and gps[team] > 0:
+                    value = value / gps[team]
+                per_game[team] = value
+            mine = per_game[my_team]
+            med = median(per_game.values())
+            # signed gap, positive = behind (matches the domain's CatTag)
+            gap = (mine - med) if DIRECTIONS[cat] == "lower" else (med - mine)
+            mine_t = f"{mine:.1%}" if pct else f"{mine:.2f}"
+            med_t = f"{med:.1%}" if pct else f"{med:.2f}"
+            gap_t = f"{gap:+.1%}" if pct else f"{gap:+.2f}"
+            for r, text in enumerate([mine_t, med_t, gap_t, tag.tag]):
                 grid.setItem(r, c, QTableWidgetItem(text))
-            values = [proj.cat_values[tag.cat] for proj in projections.values()]
+            values = list(per_game.values())
             spread = max(values) - min(values)
             if spread <= 0:
                 spread = 1.0
-            color = stat_color(-tag.gap / spread, theme=theme_name)
-            gap_item = grid.item(2, c)
-            if color.alpha() != 0 and gap_item is not None:
-                gap_item.setBackground(QBrush(color))
+            color = stat_color(-gap / spread, theme=theme_name)
+            if color.alpha() != 0:
+                for r in (0, 2):
+                    item = grid.item(r, c)
+                    if item is not None:
+                        item.setBackground(QBrush(color))
 
     def _render_roster(self, report=None) -> None:
         """Selected team's roster: keepers (round + opt-out) then picks in

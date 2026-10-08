@@ -260,6 +260,13 @@ def score_pool(
 
     out: list[Suggestion] = []
     for index, (row, fit) in enumerate(zip(candidates, fits, strict=True)):
+        # cats this player helps: positive fit contribution per cat (z is
+        # sign-flipped at parse, so z > 0 is always the good direction)
+        helps = tuple(
+            cat
+            for cat in CATS
+            if WEIGHTS[cat] > 0 and row.z[cat] * mults[cat] > 0
+        )
         market = 0.0 if row.rank is None else (rank_max - row.rank) / rank_max
         fit_norm = 0.5 if hi == lo else (fit - lo) / (hi - lo)
         tag = _reach_tag(row.adp, overall)
@@ -297,6 +304,7 @@ def score_pool(
                     tag=tag,
                     gap=row.name in gap_names,
                     score=score,
+                    cats=helps,
                 ),
             )
         )

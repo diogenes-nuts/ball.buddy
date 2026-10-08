@@ -75,6 +75,9 @@ def test_fit_overrides_market_for_a_hole_cat():
     result = score_pool(rows, my_rows, overall=10, team_count=10)
     assert names(result) == ["PtsGuy", "HighRank"]
     assert "holes pts" in result[0].reason
+    # need cats: PtsGuy helps at pts; HighRank has no positive fit cat
+    assert result[0].cats == ("pts",)
+    assert result[1].cats == ()
 
 
 def test_hole_vs_covered_multiplier_visible_in_ordering():

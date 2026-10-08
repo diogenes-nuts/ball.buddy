@@ -79,6 +79,9 @@ class Suggestion:
     tag: str = ""
     gap: bool = False
     score: float = 0.0
+    # P6: category needs this player helps (positive fit contribution per
+    # cat); empty in the M2.3 fallback, which the UI shows as an em dash.
+    cats: tuple[str, ...] = ()
 
 
 def _parse_rank(text: str) -> int | None:

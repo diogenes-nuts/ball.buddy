@@ -13,7 +13,8 @@ from pathlib import Path
 os.environ["QT_QPA_PLATFORM"] = "offscreen"  # must be set before any PySide6 import
 
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QHeaderView
 
 from ball_buddy.domain import picks as picks_mod
 from ball_buddy.domain.keepers import KeeperEntry
@@ -83,6 +84,14 @@ def test_layout_no_grid_widget(qapp, tmp_path):
     assert board.relative_grid.rowCount() == 4
     # roster panel: Name/Pos/Value/From + 9 z columns
     assert board.roster_grid.columnCount() == 4 + 9
+    # players table: Name stretches, the rest size to content
+    hdr = board.player_view.horizontalHeader()
+    assert hdr.sectionResizeMode(0) == QHeaderView.ResizeMode.Stretch
+    assert hdr.sectionResizeMode(1) == QHeaderView.ResizeMode.ResizeToContents
+    # text cells must not leak into CheckStateRole (digit cells would render
+    # checkbox indicators)
+    rank_idx = board._player_model.index(0, 3)
+    assert board._player_model.data(rank_idx, Qt.ItemDataRole.CheckStateRole) is None
     # recs rail: 5 columns, top-n spin default 10, range 1-20
     assert board.recs_grid.columnCount() == 5
     assert board.top_n_spin.value() == 10
@@ -225,7 +234,7 @@ def test_recs_rail_fallback_ranking_and_top_n(qapp, tmp_path):
     assert board.recs_grid.item(0, 0).text() == "1"
     assert board.recs_grid.item(0, 2).text() == "\u2014"  # no tag in fallback
     assert board.recs_grid.item(0, 3).text() == "\u2014"  # no mkt/fit bits
-    assert "pool rank 2" in board.recs_grid.item(0, 4).text()
+    assert board.recs_grid.item(0, 4).text() == "\u2014"  # no cats in fallback
     # top-N: 3 -> only 3 rows, persisted to settings
     board.top_n_spin.setValue(3)
     assert _recs_names(board) == ["Two Bumble", "Three Cheetah", "Four Deer"]
@@ -273,7 +282,7 @@ def test_recs_rail_scorer_path(qapp, tmp_path):
     # mkt/fit summary parsed from the reason bits
     mkfit = board.recs_grid.item(0, 3).text()
     assert mkfit.startswith("mkt ") and "/ fit " in mkfit
-    assert "mkt " in board.recs_grid.item(0, 4).text()  # verbatim reason kept
+    assert board.recs_grid.item(0, 4).text() == "pts"  # need cats (fixture: z_pts only)
     # top_n default 10 caps the rail
     assert board.recs_grid.rowCount() <= 10
 
@@ -319,8 +328,8 @@ def test_relative_panel_rows_and_gap_colors(qapp, tmp_path):
     grid = board.relative_grid
     assert grid.columnCount() == 9
     assert grid.rowCount() == 4
-    # col 0 = pts: Alpha is best (840 vs 70) -> BUILD, negative gap
-    assert grid.item(0, 0).text() == "840.0"  # My team row
+    # col 0 = pts: Alpha is best (12.0 vs 1.0 per game) -> BUILD, neg gap
+    assert grid.item(0, 0).text() == "12.00"  # My team row, per game
     assert grid.item(2, 0).text().startswith("-")  # Gap row: ahead
     assert grid.item(3, 0).text() == "BUILD"
     # col 1 = reb: Alpha is worst -> PUNT, positive gap (behind)
