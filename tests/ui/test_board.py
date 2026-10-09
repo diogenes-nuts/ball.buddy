@@ -579,11 +579,12 @@ def test_two_column_layout_right_rail_scroll(qapp, tmp_path):
         for p in (board.recs_panel, board.relative_panel, board.roster_panel)
     )
     assert rail.width() == max_panel
-    # The left panel is exactly the pool table's column-content width
-    # (plus table frame + panel margins/border).
-    columns = board._player_model.columnCount()
-    table_w = sum(board.player_view.columnWidth(ci) for ci in range(columns))
-    assert board.left_panel.width() == table_w + 4 + 16 + 4
+    # The left panel stretches (the pool table keeps all leftover window
+    # width as empty table background) — it is NOT content-fitted.
+    assert (
+        board.left_panel.sizePolicy().horizontalPolicy()
+        == QSizePolicy.Policy.Expanding
+    )
     right_col = rail.widget()
     # Recs, Comparison, Roster in that order, each a panel.
     assert right_col.layout().itemAt(0).widget() is board.recs_panel
@@ -612,8 +613,15 @@ def test_search_dropdown_narrows_and_closes_on_blur(qapp, tmp_path):
     full = model.rowCount()
     assert full == len(POOL)
     # Typing a substring narrows the dropdown (only the dropdown — the pool
-    # table itself is never filtered).
+    # table itself is never filtered) and the popup actually appears (the
+    # old Qt.Popup flag stole focus on show() and the focus-out filter
+    # killed it before it was ever visible).
+    board.refresh()
+    board.resize(1400, 900)
+    board.show()
     board.name_edit.setText("one")
+    qapp.processEvents()
+    assert board.search_popup.isVisible()
     narrowed = [
         str(model.data(model.index(r, 0))) for r in range(model.rowCount())
     ]
@@ -626,7 +634,7 @@ def test_search_dropdown_narrows_and_closes_on_blur(qapp, tmp_path):
     # Losing focus closes the popup (routed through the event filter, as Qt
     # dispatches it).
     board.name_edit.setText("one")
-    board.search_popup.show()
+    qapp.processEvents()
     assert board.search_popup.isVisible()
     qapp.sendEvent(board.name_edit, QFocusEvent(QEvent.Type.FocusOut))
     assert not board.search_popup.isVisible()

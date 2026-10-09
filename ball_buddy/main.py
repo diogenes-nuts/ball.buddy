@@ -71,7 +71,8 @@ def main() -> int:
     # Apply the persisted theme before first show (no light flash on a
     # dark-mode install); the sidebar toggle keeps it in sync afterwards.
     apply_theme(app, "dark" if window.sync_service.settings().get("dark_mode") else "light")
-    window.show()
+    # Draft-day use is on a big screen; the user asked to open fullscreen.
+    window.showMaximized()
     return app.exec()
 
 

@@ -1,5 +1,24 @@
 # 006_board — done
 
+## 2026-10-08 — overhaul 6 — Second screenshot review: search popup actually appears (Qt.Popup flag stole focus → own focus-out filter killed it on show), pool columns truly content-width (theme cell font for metrics — app font under-measured ~8px), left panel stretches again (rail stays content-width), stat-color backgrounds restored (plain QTableView::item QSS rule drops model BackgroundRole), app opens maximized
+
+### 6.1 — Search popup never appeared
+- Root cause (offscreen repro): `Qt.Popup` windows grab keyboard focus on `show()` → the search edit's `FocusOut` → the overhaul-5 event filter hid the popup before it was ever visible (geometry + narrowed rows were all fine). Fix: drop `Qt.Popup`, keep `FramelessWindowHint`; the focus-out filter still closes it on click-away.
+
+### 6.2 — Columns narrower than their content ("+…" truncation)
+- `_fit_player_columns` measured with the view's inherited application font, but the theme's `*` rule renders **IBM Plex Mono 13px medium** (~8px wider advances: "+1.23" 60→65, longest name 276→299). Fix: measure with a `QFont(FONT_MONO, pixelSize 13, Weight.Medium)` built from the theme's own constants.
+
+### 6.3 — Dead canvas on wide windows → left panel stretches again
+- Overhaul 5 content-fixed BOTH panels (left = table width), but the user's content-width request was about the **rail** — a fixed left panel left ~half the fullscreen empty. Fix: left panel `Expanding` + row stretch (leftover = empty pool-table background, the Name-column rule); rail keeps its `_sync_panel_widths` content width.
+
+### 6.4 — Stat-color backgrounds lost
+- Isolated by pixel-level offscreen bisection: a **plain `QTableView::item { … }` QSS rule** (no `:selected`) makes `QStyleSheetStyle` take over item painting and drops model `BackgroundRole` — every stat-tinted cell painted surface. Overhaul 5 had widened the padding rule's selector to include `QTableView`. Fix: `QTableWidget::item` only; the `:selected` rules (which do NOT kill backgrounds) stay, so full-row teal + stat tints coexist. Gotcha documented in the theme QSS source.
+
+### 6.5 — Open maximized
+- `main.py` `show()` → `showMaximized()` (user ask).
+
+Tests: popup test now drives the real `setText` path + asserts `isVisible()` and keeps the focus-out close assert; layout test asserts left panel `Expanding` + rail == widest panel content (480-gone). All ui per-file green, ruff clean, exe rebuilt.
+
 ## 2026-10-08 — overhaul 5 — Screenshot-review fixes: search dropdown actually narrows (Qt 6.11 neutered invalidateFilter — root cause), popup closes on focus-out, both board columns content-width left-packed (replaces the stretch + RAIL_WIDTH=480 from overhaul 4), teal accent tokens on active UI state app-wide
 
 ### 5.1 — Search dropdown bug (user: "it shows ALL players in the drop down, not only the names with the searched term")

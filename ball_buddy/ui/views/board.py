@@ -37,7 +37,14 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
-from PySide6.QtGui import QBrush, QColor, QStandardItem, QStandardItemModel
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QFontMetrics,
+    QStandardItem,
+    QStandardItemModel,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -68,7 +75,7 @@ from ball_buddy.domain.recommend import Suggestion, recommend_need_aware
 from ball_buddy.domain.relative import category_tags
 from ball_buddy.domain.scorer import CAT_Z_COLUMN
 from ball_buddy.services.sync import SyncService
-from ball_buddy.ui.theme import THEMES, stat_color
+from ball_buddy.ui.theme import FONT_MONO, TEXT_BASE, THEMES, stat_color
 from ball_buddy.ui.views import _offline
 from ball_buddy.ui.views.matchup import CAT_LABELS
 
@@ -410,10 +417,11 @@ class DraftBoard(QWidget):
 
         self.left_panel = QWidget()
         self.left_panel.setObjectName("panel")
-        # Content width only — the pool table is exactly as wide as its
-        # columns; leftover window width stays empty canvas (see
-        # _sync_panel_widths, which sets the fixed width per render).
-        row.addWidget(self.left_panel, 0)
+        # The pool keeps all leftover window width (a wider window shows
+        # more of the table's empty right margin, not dead canvas); the
+        # rail is content-width (see _sync_panel_widths).
+        self.left_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        row.addWidget(self.left_panel, 1)
         inner = QVBoxLayout(self.left_panel)
         inner.setContentsMargins(8, 8, 8, 8)
         inner.setSpacing(8)
@@ -440,9 +448,11 @@ class DraftBoard(QWidget):
         self.search_popup.setEditTriggers(
             QAbstractItemView.EditTrigger.NoEditTriggers
         )
-        self.search_popup.setWindowFlags(
-            Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint
-        )
+        # No Qt.Popup flag: a popup window grabs keyboard focus on show(),
+        # which fires the edit's FocusOut and the event filter below hides
+        # the popup before it is ever visible. Frameless + the focus-out
+        # filter give the same close-on-click-away behavior.
+        self.search_popup.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.search_popup.activated.connect(self._on_search_pick)
         self.name_edit.textChanged.connect(self._on_search_text)
         # Close the popup when the search box loses focus (tabbing away,
@@ -662,7 +672,16 @@ class DraftBoard(QWidget):
         stays empty table background. One-shot ``setColumnWidth`` keeps
         restyle/theme-toggle cost at zero.
         """
-        fm = self.player_view.fontMetrics()
+        # Measure with the theme's actual cell font — the view's inherited
+        # application font is NOT what the QSS `*` rule renders (IBM Plex
+        # Mono 13px medium runs wider), so the app font under-measures
+        # every column and the z cells truncate to "+…".
+        cell_font = QFont()
+        cell_font.setFamily(FONT_MONO)
+        cell_font.setPixelSize(int(TEXT_BASE.rstrip("px")))
+        # Qt's QSS maps CSS `font-weight: 500` to QFont.Weight.Medium.
+        cell_font.setWeight(QFont.Weight.Medium)
+        fm = QFontMetrics(cell_font)
         for ci in range(self._player_model.columnCount()):
             width = fm.horizontalAdvance(self._player_model.widest_text(ci)) + 24
             self.player_view.setColumnWidth(ci, width)
@@ -820,19 +839,12 @@ class DraftBoard(QWidget):
         return super().eventFilter(obj, event)
 
     def _sync_panel_widths(self) -> None:
-        """Size both columns to their content (no dead space):
-
-        - the left panel is exactly the pool table's column-content width
-          (plus the table frame + panel margins/border);
-        - the right rail is exactly its widest panel's content width.
-
-        Leftover window width stays empty canvas (the row's stretch); on a
-        narrow window the rail's horizontal scrollbar takes over.
+        """Keep the right rail exactly its content width (no dead space,
+        no greedy stretch): the rail is its widest panel's content width, and
+        on a narrow window the rail's horizontal scrollbar takes over. The
+        left panel stretches instead — the pool table keeps all leftover
+        window width as empty table background (the Name-column rule).
         """
-        columns = self._player_model.columnCount()
-        table_w = sum(self.player_view.columnWidth(ci) for ci in range(columns))
-        # table frame (2px x2) + panel margins (8 x2) + panel border (2 x2)
-        self.left_panel.setFixedWidth(table_w + 4 + 16 + 4)
         rail_w = max(
             panel.sizeHint().width()
             for panel in (self.recs_panel, self.relative_panel, self.roster_panel)

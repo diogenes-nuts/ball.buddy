@@ -356,7 +356,12 @@ QScrollArea {{
    Selection = full-row teal (the user found the flat sunken highlight too
    subtle and small; item-level backgrounds override the view-level
    selection background). QTableView needs its own rule — QSS does not
-   style a QTableView subclass from the QTableWidget block. */
+   style a QTableView subclass from the QTableWidget block.
+   WARNING: a plain `QTableView::item { ... }` rule (no :selected) makes
+   QStyleSheetStyle take over item painting and DROPS model BackgroundRole
+   — the player table's stat-color backgrounds vanish. Only :selected and
+   view-level rules may touch QTableView items. (Found by pixel-level
+   offscreen bisection, overhaul 6.) */
 QTableWidget {{
     background-color: {p['surface']};
     alternate-background-color: {p['canvas']};
@@ -374,7 +379,7 @@ QTableView {{
     selection-background-color: {p['accent']};
     selection-color: {p['accent_text']};
 }}
-QTableWidget::item, QTableView::item {{
+QTableWidget::item {{
     padding: 0 12px;
     border: none;
 }}
