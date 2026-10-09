@@ -23,7 +23,7 @@ User decisions (2026-10-08):
   sortable pool columns, dedupe banner + titles, stop Roster stretch.
 
 Phases (each: pytest + ruff green, per-directory runs; offscreen UI tests where they
-exist; verify against a screenshot when the user can provide one) — phases 1–5 done
+exist; verify against a screenshot when the user can provide one) — phases 1–6 done
 (see done.md).
 
 ## Plan: Draft v2 (before 2026-10-15..20 draft; ~1 week)

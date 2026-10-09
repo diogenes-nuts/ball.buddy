@@ -2,8 +2,8 @@
 (Rewrite this whole file at every checkpoint. Never append.)
 
 ## Status
-- Position: OVERHAUL 6 — all 4 fixes implemented, offscreen-verified, all ui tests green (board 25, all 11 files pass), ruff clean, docs updated (status.md overhaul-6, done.md §6.1–6.5). App is CLOSED (tasklist clean). NOW: rebuild exe → phase_complete.
-- Exact next step: mv dist/data → dist_data_backup; .venv/Scripts/pyinstaller.exe -y --onedir --windowed --name ball.buddy --collect-submodules PySide6 --paths . ball_buddy/main.py --icon assets/icon.ico (~90s); mv back; verify dist/data restored; phase_complete 006_board "overhaul 6"; tell user to re-screenshot (checklist: popup appears on typing, no "+…" truncation, pool fills window when wide, stat colors back, opens fullscreen).
+- Position: OVERHAUL 6 COMMITTED (0c9a00c), exe rebuilt (overhaul-6 build on disk), docs in place. Awaiting user re-screenshot.
+- Exact next step: user re-screenshots → verify: popup appears on typing, no "+…" truncation, pool fills window width, stat colors back, opens fullscreen. Dev.md phase count bumped to 1–6 (uncommitted, lands next).
 - In flight: dirty = theme.py, board.py, main.py, test_board.py, docs (status/done 006_board). dev.md unchanged this round (no §6 was written).
 
 ## User round 3 (told yes — diagnosed + fixed)
@@ -19,7 +19,7 @@
 
 ## Verification
 - Baseline 19ea097 green. Post-fix (uncommitted): ui per-file ALL GREEN (board 25, draft 5, inbox 4, league 13, lineup 5, matchup 9, setup 13, sign_in 4, theme 5, trade 7, waiver 5), ruff clean, offscreen final_check all 4 behaviors OK.
-- exe on disk = overhaul-5 build (STALE — rebuild running next).
+- exe on disk = overhaul-6 build (rebuilt 0c9a00c; dist/data restored after).
 
 ## U-turns
 - left panel fixed → stretch (overhaul 5 over-inference; user req was rail only)
