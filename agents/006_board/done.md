@@ -1,5 +1,15 @@
 # 006_board — done
 
+## 2026-10-09 — overhaul 7 — Third screenshot review: rail sized to actual grid content (sizeHint is a stub — inner h-scrollbars gone, dead canvas right of the rail gone), search popup anchored under the search bar (mapToGlobal on a child widget double-offset it to mid-screen on a maximized window)
+
+### 7.1 — Rail still h-scrolled + dead space to its right
+- Root cause (offscreen repro): `_sync_panel_widths` sized the rail from the panels' `sizeHint()`, but **QTableWidget's sizeHint is a stub** (reports ~272–384px while the grids' real content is 478–754px column-sum) → rail pinned at ~292px → every inner grid got its own horizontal scrollbar. The dead canvas right of the rail came from a trailing `row.addStretch(1)` splitting leftover width with the left panel. Fix: `rail_w = max(sum(grid.columnWidth(ci)) + 20 (margins 8×2 + border 2×2))` after forcing `resizeColumnsToContents()` (column widths lag a frame in ResizeToContents mode); trailing stretch removed — the left panel (Expanding) claims all leftover. Re-synced in a new `showEvent` too: grid columns only polish with the theme font at show time, so a pre-show measurement under-shoots.
+
+### 7.2 — Search popup floated mid-screen
+- Root cause: the popup is a CHILD of the board (`QListView(self)`, `isWindow()` False) but `_on_search_text` positioned it with `name_edit.mapToGlobal(…)` — GLOBAL coordinates fed into a child `move()`, which expects BOARD-LOCAL coordinates. Off-screen (board at 0,0) the offset is 0 so tests never saw it; in the real maximized app (board offset ~250px) the popup landed at ~2× the offset — mid-screen. Fix: `move(name_edit.mapTo(self, QPoint(0, height)))` + width set before `show()`.
+
+Tests: rail test now asserts `rail.width() == max(grid column-sum + 20)` after `show()` (sizeHint-era 480/panel-width asserts gone); popup test keeps the real `setText` path. All ui per-file green, ruff clean, exe rebuilt.
+
 ## 2026-10-08 — overhaul 6 — Second screenshot review: search popup actually appears (Qt.Popup flag stole focus → own focus-out filter killed it on show), pool columns truly content-width (theme cell font for metrics — app font under-measured ~8px), left panel stretches again (rail stays content-width), stat-color backgrounds restored (plain QTableView::item QSS rule drops model BackgroundRole), app opens maximized
 
 ### 6.1 — Search popup never appeared

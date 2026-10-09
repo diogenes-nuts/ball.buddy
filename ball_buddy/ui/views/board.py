@@ -607,8 +607,9 @@ class DraftBoard(QWidget):
         )
         right_inner.addWidget(self.roster_panel, 0)
         right_inner.addStretch(1)
-        # Leftover window width (past pool panel + rail) stays empty canvas.
-        row.addStretch(1)
+        # No trailing row stretch: the left panel (Expanding) already claims
+        # all leftover window width, so a second stretch would split it and
+        # leave dead canvas to the right of the rail.
         roster_inner = QVBoxLayout(self.roster_panel)
         roster_inner.setContentsMargins(8, 8, 8, 8)
         roster_inner.setSpacing(4)
@@ -832,6 +833,14 @@ class DraftBoard(QWidget):
             f"R{current.round} · pick {current.overall}/{total} · {current.team}"
         )
 
+    def showEvent(self, event) -> None:
+        # Re-size the rail once it is actually shown: the grid column widths
+        # aren't polished with the theme font until show time, so a rail width
+        # measured during refresh() (pre-show) under-shoots. Cheap — three
+        # tiny grids.
+        super().showEvent(event)
+        self._sync_panel_widths()
+
     def eventFilter(self, obj, event) -> bool:
         """Close the search popup when the name edit loses focus."""
         if obj is self.name_edit and event.type() == QEvent.Type.FocusOut:
@@ -845,10 +854,20 @@ class DraftBoard(QWidget):
         left panel stretches instead — the pool table keeps all leftover
         window width as empty table background (the Name-column rule).
         """
-        rail_w = max(
-            panel.sizeHint().width()
-            for panel in (self.recs_panel, self.relative_panel, self.roster_panel)
-        )
+        # A panel's sizeHint() UNDER-reports its grid (QTableWidget's hint
+        # is a stub, not the content) — size the rail to the widest grid's
+        # actual columns + the panel chrome (margins 8x2 + border 2x2) so
+        # no inner grid needs its own horizontal scrollbar. Force a
+        # resize-to-contents first: the column widths lag a frame in
+        # ResizeToContents mode, so a stale measurement would size the rail
+        # too small. (These are tiny grids, unlike the pool table.)
+        rail_w = 0
+        for grid in (self.recs_grid, self.relative_grid, self.roster_grid):
+            grid.resizeColumnsToContents()
+            rail_w = max(
+                rail_w,
+                sum(grid.columnWidth(ci) for ci in range(grid.columnCount())) + 20,
+            )
         self.right_rail.setFixedWidth(rail_w)
 
     def _sync_recs_height(self) -> None:
@@ -1136,9 +1155,12 @@ class DraftBoard(QWidget):
         self._search_filter.set_query(text)
         names = self._search_filter.matched_names()
         if text and names:
-            self.search_popup.setFixedWidth(self.name_edit.width())
+            # The popup is a CHILD of the board, so position it in board
+            # coordinates — mapToGlobal used to double the board's own
+            # offset on a maximized window (popup landed mid-screen).
+            self.search_popup.setFixedWidth(self.name_edit.width() + 4)
             self.search_popup.move(
-                self.name_edit.mapToGlobal(QPoint(0, self.name_edit.height()))
+                self.name_edit.mapTo(self, QPoint(0, self.name_edit.height()))
             )
             self.search_popup.show()
         else:

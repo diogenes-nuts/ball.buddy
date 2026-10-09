@@ -572,13 +572,24 @@ def test_two_column_layout_right_rail_scroll(qapp, tmp_path):
     rail = board.right_rail
     assert isinstance(rail, QScrollArea)
     assert rail.widgetResizable()
-    # Both columns are content-sized (no dead space, no greedy stretch):
-    # the rail is exactly its widest panel's content width.
-    max_panel = max(
-        p.sizeHint().width()
-        for p in (board.recs_panel, board.relative_panel, board.roster_panel)
+    # The rail is exactly the widest grid's column-content width + the
+    # panel chrome (margins 8x2 + border 2x2 = 20). Panel sizeHints are
+    # unusable — QTableWidget's is a stub, not the content. (show() first:
+    # showEvent re-syncs the widths with the theme-polished columns.)
+    board.resize(1400, 900)
+    board.show()
+    max_grid = max(
+        sum(g.columnWidth(ci) for ci in range(g.columnCount())) + 20
+        for g in (board.recs_grid, board.relative_grid, board.roster_grid)
     )
-    assert rail.width() == max_panel
+    assert rail.width() == max_grid
+    # The rail never needs to be narrower than its widest grid, so no
+    # inner grid shows its own horizontal scrollbar (the old sizeHint rule
+    # fixed the rail at ~292px against a 754px roster grid).
+    for g in (board.recs_grid, board.relative_grid, board.roster_grid):
+        assert sum(
+            g.columnWidth(ci) for ci in range(g.columnCount())
+        ) <= max_grid - 20
     # The left panel stretches (the pool table keeps all leftover window
     # width as empty table background) — it is NOT content-fitted.
     assert (
@@ -603,7 +614,7 @@ def test_two_column_layout_right_rail_scroll(qapp, tmp_path):
 
 
 def test_search_dropdown_narrows_and_closes_on_blur(qapp, tmp_path):
-    from PySide6.QtCore import QEvent
+    from PySide6.QtCore import QEvent, QPoint
     from PySide6.QtGui import QFocusEvent
 
     board = make_board(tmp_path, [])
@@ -622,6 +633,13 @@ def test_search_dropdown_narrows_and_closes_on_blur(qapp, tmp_path):
     board.name_edit.setText("one")
     qapp.processEvents()
     assert board.search_popup.isVisible()
+    # The popup is a CHILD of the board, so it must sit at the edit's
+    # bottom-left in board coordinates (mapToGlobal used to double the
+    # board's window offset and park the popup mid-screen).
+    expected = board.name_edit.mapTo(
+        board, QPoint(0, board.name_edit.height())
+    )
+    assert board.search_popup.pos() == expected
     narrowed = [
         str(model.data(model.index(r, 0))) for r in range(model.rowCount())
     ]
