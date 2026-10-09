@@ -59,9 +59,12 @@ def test_view_embeds_board_and_setup_button(qapp, tmp_path):
 
 def test_no_snapshot_shows_banner(qapp, tmp_path):
     view = make_view(tmp_path)
-    assert "Sync the league first" in view.alert_banner.text()
-    assert view.alert_banner.objectName() == "banner-danger"
-    assert not view.alert_banner.isHidden()
+    # the danger alert now lives on the board (overhaul 3 dedupe); the
+    # page's keepers alert stays empty
+    assert "Sync the league first" in view.board.alert_banner.text()
+    assert view.board.alert_banner.objectName() == "banner-danger"
+    assert not view.board.alert_banner.isHidden()
+    assert view.alert_banner.isHidden()
 
 
 def test_saved_keepers_flow_into_board(qapp, tmp_path):
@@ -106,7 +109,8 @@ def make_manual_view(tmp_path: Path) -> DraftView:
 def test_manual_teams_render_offline_board(qapp, tmp_path):
     view = make_manual_view(tmp_path)
     assert view.teams == ["Alpha", "Beta"]
-    assert not view.offline_banner.isHidden()
-    assert "manual team list" in view.offline_banner.text()
+    # the offline banner lives on the board now (overhaul 3 dedupe)
     assert view.board is not None
+    assert not view.board.offline_banner.isHidden()
+    assert "manual team list" in view.board.offline_banner.text()
     assert view.board.start_order == ["Alpha", "Beta"]

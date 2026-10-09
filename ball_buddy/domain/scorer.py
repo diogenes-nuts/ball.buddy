@@ -73,15 +73,15 @@ WEIGHTS: dict[str, float] = {cat: 1.0 for cat in CATS}
 CAT_Z_COLUMN: dict[str, str] = {
     cat: Z_FIELD_FOR[stat]
     for cat, stat in (
+        ("fg_pct", "fg_pct"),
+        ("ft_pct", "ft_pct"),
+        ("three", "three_pg"),
         ("pts", "pts_pg"),
         ("reb", "reb_pg"),
         ("ast", "ast_pg"),
         ("stl", "stl_pg"),
         ("blk", "blk_pg"),
         ("to", "to_pg"),
-        ("three", "three_pg"),
-        ("fg_pct", "fg_pct"),
-        ("ft_pct", "ft_pct"),
     )
 }
 

@@ -81,17 +81,17 @@ def test_headline_winner_and_cat_wins(view: MatchupView) -> None:
     assert "Red wins" in view.headline_label.text()
     assert "7-2" in view.headline_label.text()
     assert "No lineups yet" in view.banner.text()
-    # W/L column per cat (CATS order: pts reb ast stl blk to three fg ft)
+    # W/L column per cat (CATS display order: fg ft three pts reb ast stl blk to)
     wl = [view.cat_table.item(i, 4).text() for i in range(9)]
-    assert wl == ["A", "A", "B", "A", "A", "B", "A", "A", "A"]
+    assert wl == ["A", "A", "A", "A", "A", "B", "A", "A", "B"]
 
 
 def test_gap_cells_match_m31_fixture(view: MatchupView) -> None:
     view.pick_teams("Red", "Blue")
     gaps = [view.cat_table.item(i, 1).text() for i in range(9)]
     assert gaps == [
-        "+520", "+360", "-80", "+32", "+36", "+20", "+60",
-        "+0.03187135", "+0.00577778",
+        "+0.03187135", "+0.00577778", "+60",
+        "+520", "+360", "-80", "+32", "+36", "+20",
     ]
     assert view.gap_bars.gaps["pts"] == pytest.approx(520)
     assert view.gap_bars.gaps["fg_pct"] == pytest.approx(18.1 / 38 - 12 / 27, abs=1e-9)
@@ -104,9 +104,11 @@ def test_marginal_table_order_and_signs(view: MatchupView) -> None:
     sides = [view.marginal_table.item(i, 1).text() for i in range(4)]
     assert names == ["P1", "P2", "P3", "P4"]
     assert sides == ["A", "A", "B", "B"]
-    # P1 pts contribution +800; P3 pts contribution -600; pct cols are "–"
-    assert view.marginal_table.item(0, 2).text() == "+800.0"
-    assert view.marginal_table.item(2, 2).text() == "-600.0"
+    # P1 pts contribution +800; P3 pts contribution -600; pct cols are "–".
+    # Header: Player,Side,3P,Pts,Reb,Ast,Stl,Blk,To,FG%,FT% -> pts is col 3,
+    # FG%/FT% (the always-dash cols) are 9/10.
+    assert view.marginal_table.item(0, 3).text() == "+800.0"
+    assert view.marginal_table.item(2, 3).text() == "-600.0"
     assert view.marginal_table.item(0, 9).text() == "–"
     assert view.marginal_table.item(0, 10).text() == "–"
 

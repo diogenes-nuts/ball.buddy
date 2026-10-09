@@ -24,7 +24,6 @@ from ball_buddy.domain import keepers as keepers_mod
 from ball_buddy.domain.keepers import KeeperEntry
 from ball_buddy.io.state import StateError
 from ball_buddy.services.sync import SyncService
-from ball_buddy.ui.views import _offline
 from ball_buddy.ui.views.board import DraftBoard
 from ball_buddy.ui.views.setup_dialog import SetupDialog
 
@@ -57,26 +56,17 @@ class DraftView(QWidget):
         header.addWidget(note)
         root.addLayout(header)
 
-        self.offline_banner = QLabel("")
-        self.offline_banner.setObjectName("banner-info")
-        self.offline_banner.setWordWrap(True)
-        self.offline_banner.setVisible(False)
-        root.addWidget(self.offline_banner)
-
-        self.status_banner = QLabel("")
-        self.status_banner.setObjectName("banner-info")
-        self.status_banner.setWordWrap(True)
-        self.status_banner.setVisible(False)
-        root.addWidget(self.status_banner)
+        # Banners: the embedded board owns the offline notice + its own
+        # danger alerts; the page keeps only the keepers alert (over-cap /
+        # keepers.json parse — the board never sees those). The page's own
+        # offline + status banners and the redundant "Draft board" title
+        # were removed (overhaul 3): the offline text rendered twice and
+        # "draft" + "Draft board" stacked two titles.
         self.alert_banner = QLabel("")
         self.alert_banner.setObjectName("banner-danger")
         self.alert_banner.setWordWrap(True)
         self.alert_banner.setVisible(False)
         root.addWidget(self.alert_banner)
-
-        self.board_title = QLabel("Draft board")
-        self.board_title.setObjectName("title")
-        root.addWidget(self.board_title)
 
         self.refresh()
 
@@ -91,20 +81,15 @@ class DraftView(QWidget):
         """
         snapshot = self.service.effective_snapshot()
         if snapshot is None:
+            # the board (recreated below) shows the "Sync the league first"
+            # danger alert itself; the page adds nothing
             self.teams = []
-            _offline.hide_banner(self.offline_banner)
-            self._set_banner(
-                self.alert_banner, "banner-danger", "Sync the league first (League → Sync now)"
-            )
-            self._set_banner(self.status_banner, "banner-info", "")
+            self._set_banner(self.alert_banner, "banner-danger", "")
             self._rebuild_board([])
             return
 
         self._set_banner(self.alert_banner, "banner-danger", "")
-        if _offline.is_manual(snapshot):
-            _offline.show_banner(self.offline_banner)
-        else:
-            _offline.hide_banner(self.offline_banner)
+        # the offline-manual banner lives on the board (single copy)
         self.teams = [team["name"] for team in snapshot.get("teams", [])]
 
         all_saved: list[KeeperEntry] = []
@@ -131,8 +116,6 @@ class DraftView(QWidget):
         )
         if self._dropped_msg:
             self._set_banner(self.alert_banner, "banner-danger", self._dropped_msg)
-        else:
-            self._set_banner(self.status_banner, "banner-info", "")
         self._rebuild_board(saved)
 
     def _rebuild_board(self, saved: list[KeeperEntry]) -> None:
@@ -149,6 +132,11 @@ class DraftView(QWidget):
         layout = self.layout()  # type: ignore[union-attr]
         if layout is not None:
             layout.addWidget(self.board)
+
+    def set_theme(self, theme_name: str) -> None:
+        """Recolor the draft table's stat cells on a theme switch."""
+        if self.board is not None:
+            self.board.set_theme(theme_name)
 
     def _open_setup(self) -> None:
         """Open the Setup dialog; refresh the view when the user saved."""

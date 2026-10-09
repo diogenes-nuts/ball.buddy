@@ -45,8 +45,8 @@ from ball_buddy.ui import theme
 from ball_buddy.ui.views import _offline
 
 CAT_LABELS: dict[str, str] = {
-    "pts": "Pts", "reb": "Reb", "ast": "Ast", "stl": "Stl", "blk": "Blk",
-    "to": "To", "three": "3P", "fg_pct": "FG%", "ft_pct": "FT%",
+    "fg_pct": "FG%", "ft_pct": "FT%", "three": "3P", "pts": "Pts",
+    "reb": "Reb", "ast": "Ast", "stl": "Stl", "blk": "Blk", "to": "To",
 }
 
 # _GapBars geometry constants.
@@ -100,7 +100,7 @@ class _GapBars(QWidget):
         painter.setPen(label_pen)
 
         y = 4
-        for group_index, cats in enumerate((engine.COUNT_CATS, engine.PCT_CATS)):
+        for group_index, cats in enumerate((engine.PCT_CATS, engine.COUNT_CATS)):
             if group_index:
                 y += _GROUP_GAP
             scale = max((abs(self.gaps.get(cat, 0.0)) for cat in cats), default=0.0)
@@ -245,8 +245,8 @@ class MatchupView(QWidget):
         # --- marginal table -------------------------------------------------------
         self.marginal_table = QTableWidget(0, 11)
         self.marginal_table.setHorizontalHeaderLabels(
-            ["Player", "Side", "Pts", "Reb", "Ast", "Stl", "Blk", "To", "3P",
-             "FG%", "FT%"]
+            ["Player", "Side", "3P", "Pts", "Reb", "Ast", "Stl", "Blk",
+             "To", "FG%", "FT%"]
         )
         self.marginal_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.marginal_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)

@@ -110,7 +110,11 @@ class MainWindow(QMainWindow):
 
         from ball_buddy.ui.theme import apply_theme
 
-        apply_theme(QApplication.instance(), "dark" if dark else "light")
+        theme_name = "dark" if dark else "light"
+        apply_theme(QApplication.instance(), theme_name)
+        # Recolor the draft players table (its stat-cell brushes are
+        # precomputed per theme, not driven by the app stylesheet).
+        self.stack.widget(NAV_ITEMS.index("Draft")).set_theme(theme_name)  # type: ignore[union-attr]
         settings = self.sync_service.settings()
         settings["dark_mode"] = bool(dark)
         self.sync_service.save_settings(settings)

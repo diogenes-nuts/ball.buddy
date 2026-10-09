@@ -6,6 +6,7 @@ Projection + win-prob engine (SPEC §4). **M3 complete** (M3.1 engine, M3.2 view
 
 - `ball_buddy/domain/engine.py` — the whole engine (pure python, no Qt, no numpy):
   - Player/roster projections from **real pool columns only**; % categories (FG%, FT%) volume-weighted, never simple averages; per-category formulas per M3.1 plan (see done.md).
+  - **Display order** is fixed in `CATS`: FG%, FT%, 3P, Pts, Reb, Ast, Stl, Blk, TO — every view/table/bar derives its category order from this (matchup cat table + gap bars, lineups, trades, board relative/roster/players columns). `COUNT_CATS` follows the same relative order for the count subset. `MC_DRAW_ORDER` is a **separate fixed tuple** (the original pts→to→3p→fg%→ft% order) used only by the seeded Monte-Carlo trial loop, so reordering `CATS` for presentation never shifts seeded win-probs (e.g. the pinned P(A) seed 42 = 0.9763).
   - `matchup(team_a, team_b, ...)` — deterministic gap mode: 9-cat point gaps, per-category W/L/**tie-for-both**, total category wins, winner. No RNG touched in this mode.
   - `win_prob(...)` — seeded Monte-Carlo (local `random.Random(seed)`, reproducible); fixed relative variance prior (no historical variance pre-draft — documented).
   - Configurable matchup-level tie-break: `tie_break="yahoo_default" | "h2h"` (SPEC §1.1 open item; default = more total category wins that season; h2h = better season H2H record; missing evidence → push).

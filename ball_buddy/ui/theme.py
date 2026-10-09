@@ -80,6 +80,8 @@ LIGHT: dict[str, str] = {
     "info": "#4F7280",
     "info_bg": "#D3E0E4",
     "info_text": "#2F4D59",
+    "accent": "#16605A",
+    "accent_text": "#F5EFE0",
 }
 
 DARK: dict[str, str] = {
@@ -109,6 +111,8 @@ DARK: dict[str, str] = {
     "info": "#84A6B4",
     "info_bg": "#263339",
     "info_text": "#A9C6D2",
+    "accent": "#4FD1C5",
+    "accent_text": "#1B1913",
 }
 
 THEMES: dict[str, dict[str, str]] = {"light": LIGHT, "dark": DARK}
@@ -205,8 +209,8 @@ QPushButton#nav:hover {{
     background-color: {p['control_hover_top']};
 }}
 QPushButton#nav:checked {{
-    background-color: {p['ink_fill']};
-    color: {p['text_on_ink']};
+    background-color: {p['accent']};
+    color: {p['accent_text']};
 }}
 
 QLabel {{
@@ -268,12 +272,13 @@ QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {{
     border-radius: {RADIUS_CONTROL};
     padding: 2px 8px;
     color: {p['text']};
-    selection-background-color: {p['text']};
-    selection-color: {p['text_on_ink']};
+    selection-background-color: {p['accent']};
+    selection-color: {p['accent_text']};
 }}
 QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus,
 QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {{
     background-color: {p['surface']};
+    border-color: {p['accent']};
 }}
 QLineEdit:disabled, QTextEdit:disabled, QSpinBox:disabled,
 QComboBox:disabled {{
@@ -290,8 +295,23 @@ QComboBox QAbstractItemView {{
     color: {p['text']};
     border: {hard};
     border-radius: {RADIUS_CONTAINER};
-    selection-background-color: {p['sunken']};
-    selection-color: {p['text']};
+    selection-background-color: {p['accent']};
+    selection-color: {p['accent_text']};
+}}
+/* Popup item views (QComboBox dropdown, QCompleter popup): the view gets
+   the control outline; items stay flat (a per-item border would frame
+   every row) */
+QListView {{
+    background-color: {p['surface']};
+    color: {p['text']};
+    border: {hard};
+    border-radius: {RADIUS_CONTAINER};
+    selection-background-color: {p['accent']};
+    selection-color: {p['accent_text']};
+}}
+QListView::item {{
+    background-color: transparent;
+    padding: 0 8px;
 }}
 QSpinBox::up-button, QDoubleSpinBox::up-button,
 QSpinBox::down-button, QDoubleSpinBox::down-button {{
@@ -318,7 +338,7 @@ QCheckBox::indicator {{
     background-color: {p['control_top']};
 }}
 QCheckBox::indicator:checked {{
-    background-color: {p['ink_fill']};
+    background-color: {p['accent']};
 }}
 QCheckBox::indicator:disabled {{
     border-color: {p['divider']};
@@ -332,23 +352,35 @@ QScrollArea {{
     border-radius: {RADIUS_CONTAINER};
 }}
 
-/* Tables: 2px outline, square, 28px rows, dividers, sunken header */
+/* Tables: 2px outline, square, 28px rows, dividers, sunken header.
+   Selection = full-row teal (the user found the flat sunken highlight too
+   subtle and small; item-level backgrounds override the view-level
+   selection background). QTableView needs its own rule — QSS does not
+   style a QTableView subclass from the QTableWidget block. */
 QTableWidget {{
     background-color: {p['surface']};
     alternate-background-color: {p['canvas']};
     border: {hard};
     border-radius: {RADIUS_CONTAINER};
     gridline-color: {p['divider']};
-    selection-background-color: {p['sunken']};
-    selection-color: {p['text']};
+    selection-background-color: {p['accent']};
+    selection-color: {p['accent_text']};
 }}
-QTableWidget::item {{
+QTableView {{
+    background-color: {p['surface']};
+    border: {hard};
+    border-radius: {RADIUS_CONTAINER};
+    gridline-color: {p['divider']};
+    selection-background-color: {p['accent']};
+    selection-color: {p['accent_text']};
+}}
+QTableWidget::item, QTableView::item {{
     padding: 0 12px;
     border: none;
 }}
-QTableWidget::item:selected {{
-    background-color: {p['sunken']};
-    color: {p['text']};
+QTableWidget::item:selected, QTableView::item:selected {{
+    background-color: {p['accent']};
+    color: {p['accent_text']};
 }}
 QAbstractItemView::item {{
     min-height: {ROW_H}px;

@@ -1,14 +1,19 @@
 """Draft board (M2.2+): the autodraft-oriented draft helper.
 
-Left column: current-pick strip (R{r} / pick n/total / team, name search,
-Log selected / Commit / Undo / Setup), the available-players table
-(model-based ``QTableView`` — hundreds of rows, double-click or "Log" to
-enter a pick, POS filter combo in the model), the 9-category relative
-panel (My team / League median / Gap / Tag — Gap cells stat-colored), and
-the roster panel (team dropdown, amber "NOT MY TEAM" flag, keepers then
-picks in round order, stat-colored z columns). Right: the recommendations
-rail (P6 scorer ordering with tag chips, mkt/fit summary, value-gap
-badge, verbatim reason, top-N spin persisted to ``settings["rec_top_n"]``).
+Two columns. Left (stretch): current-pick strip (R{r} / pick n/total /
+team, name search with a live partial-match dropdown, Commit / Undo /
+Setup) + the sortable available-players table (model-based ``QTableView``
+— hundreds of rows, header-click sort by parsed z, double-click or Enter
+to enter a pick, POS filter combo in the model). Right: a fixed-width
+scrollable rail (recommendations — P6 scorer ordering with tag chips,
+mkt/fit summary, human-labeled need cats, top-N spin persisted to
+``settings["rec_top_n"]``; then the 9-category comparison panel — My team
+/ League median / Gap / Tag, Gap cells stat-colored; then the roster
+panel — team dropdown, amber "NOT MY TEAM" flag, keepers then picks in
+round order, stat-colored z columns). Each panel sizes to its content;
+the rail scrolls vertically, the pool table stays the priority surface.
+All banners (offline / danger alerts) live on the board; the draft page
+adds only the over-cap keepers alert.
 
 Keeper-forfeit-aware: forfeited picks are derived from the keeper entries
 (single source of truth — never stored in draft_picks.json). Logging a
@@ -23,17 +28,28 @@ from __future__ import annotations
 import re
 from statistics import median
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtCore import (
+    QAbstractTableModel,
+    QEvent,
+    QModelIndex,
+    QPoint,
+    QSortFilterProxyModel,
+    Qt,
+    Signal,
+)
+from PySide6.QtGui import QBrush, QColor, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
-    QCompleter,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
+    QListView,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QTableView,
     QTableWidget,
@@ -88,6 +104,7 @@ class PlayerTableModel(QAbstractTableModel):
         super().__init__(parent)
         self._theme = theme_name
         self._pos_filter = ""
+        self._sort_key: tuple[int, bool] | None = None  # (column, ascending)
         self._all: list[dict[str, str]] = []
         self._visible: list[dict[str, str]] = []
         self.reset_pool(rows, excluded, theme_name)
@@ -101,6 +118,7 @@ class PlayerTableModel(QAbstractTableModel):
         """Swap in a fresh pool (refresh path) and rebuild the visible set."""
         self.beginResetModel()
         self._theme = theme_name
+        self._sort_key = None
         self._all = [
             row
             for row in rows
@@ -113,16 +131,108 @@ class PlayerTableModel(QAbstractTableModel):
         """Primary-position filter ("" = All)."""
         self._pos_filter = (pos or "").strip()
         self.beginResetModel()
+        self._sort_key = None
         self._rebuild()
         self.endResetModel()
 
+    def sort(self, column: int, order: int = Qt.SortOrder.AscendingOrder) -> None:
+        """Sort the visible rows by header click (the model owns the data —
+        ``QAbstractTableModel.sort`` is a no-op by default).
+
+        z columns sort by the PARSED float ("+1.2" vs "+0.4", not text);
+        Rank by int, Name/Pos case-insensitively, Value by parsed float.
+        """
+        self.beginResetModel()
+        self._sort_key = (column, order == Qt.SortOrder.AscendingOrder)
+        self._rebuild()
+        self.endResetModel()
+
+    def _row_sort_key(self, row: dict[str, str], col: int, ascending: bool = True):
+        """Sortable key of a pool row for column ``col``.
+
+        ``None`` (missing stat) sorts LAST in both directions via the
+        ``(1,)`` sentinel — an unparseable z is unknown, not zero. The
+        numeric value is negated for descending sorts (not a ``reverse``
+        pass, which would flip the sentinel to the front).
+        """
+        if col == 0:
+            return (row.get("name", "") or "").casefold()
+        if col == 1:
+            return (row.get("pos", "") or "").casefold()
+
+        def _num(field: str):
+            value = _parse_z(row.get(field, ""))
+            if value is None:
+                return (1,)
+            return (0, -value if not ascending else value)
+
+        if col == 2:
+            return _num("value")
+        if col == 3:
+            return _num("rank")
+        return _num(CAT_Z_COLUMN[tuple(CAT_Z_COLUMN)[col - len(self.BASE_COLUMNS)]])
+
     def _rebuild(self) -> None:
-        self._visible = [
+        visible = [
             row
             for row in self._all
             if not self._pos_filter
             or (row.get("pos", "") or "").split("/")[0].strip() == self._pos_filter
         ]
+        if self._sort_key is not None:
+            column, ascending = self._sort_key
+            key = self._row_sort_key
+            visible = sorted(visible, key=lambda r: key(r, column, ascending))
+        self._visible = visible
+        # Precompute per-row display text + stat colors so data() is a flat
+        # lookup. Re-polishing a QTableView on every theme toggle used to
+        # re-invoke data() ~57k times (parse + erf-based stat_color per cell);
+        # precomputing turns the restyle into ~0 Python calls.
+        cats = tuple(CAT_Z_COLUMN)
+        self._text_rows: list[tuple[str, ...]] = []
+        self._z_rows: list[tuple[tuple[str, float | None], ...]] = []
+        for row in self._visible:
+            base = tuple(
+                (row.get(key, "") or "").strip()
+                for key in ("name", "pos", "value", "rank")
+            )
+            z_row: list[tuple[str, float | None]] = []
+            stat_texts: list[str] = []
+            for cat in cats:
+                z = _parse_z(row.get(CAT_Z_COLUMN[cat], ""))
+                z_row.append((cat, z))
+                stat_texts.append("" if z is None else f"{z:+.1f}")
+            self._text_rows.append(base + tuple(stat_texts))
+            self._z_rows.append(tuple(z_row))
+        self._recompute_colors()
+
+    def _recompute_colors(self) -> None:
+        self._colors: list[tuple[QBrush | None, ...]] = []
+        for z_row in self._z_rows:
+            row_brushes: list[QBrush | None] = []
+            for cat, z in z_row:
+                if z is None:
+                    row_brushes.append(None)
+                    continue
+                color = stat_color(
+                    z, lower_is_better=DIRECTIONS[cat] == "lower", theme=self._theme
+                )
+                row_brushes.append(None if color.alpha() == 0 else QBrush(color))
+            self._colors.append(tuple(row_brushes))
+
+    def set_theme(self, theme_name: str) -> None:
+        """Recolor stat cells on a theme switch without rebuilding the pool."""
+        if theme_name == self._theme:
+            return
+        self._theme = theme_name
+        self._recompute_colors()
+        if self._visible:
+            last = len(self._visible) - 1
+            self.dataChanged.emit(
+                self.index(0, 0),
+                self.index(last, self.columnCount() - 1),
+                [Qt.ItemDataRole.BackgroundRole],
+            )
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: N802
         return 0 if parent.isValid() else len(self._visible)
@@ -146,7 +256,7 @@ class PlayerTableModel(QAbstractTableModel):
     ) -> object:
         if not index.isValid():
             return None
-        row = self._visible[index.row()]
+        row_i = index.row()
         col = index.column()
         if col < len(self.BASE_COLUMNS):
             # text cells: Display/Edit ONLY — returning text for every role
@@ -157,27 +267,35 @@ class PlayerTableModel(QAbstractTableModel):
                 Qt.ItemDataRole.EditRole,
             ):
                 return None
-            key = ("name", "pos", "value", "rank")[col]
-            return (row.get(key, "") or "").strip()
+            return self._text_rows[row_i][col]
         if role == Qt.ItemDataRole.DisplayRole:
-            z = _parse_z(row.get(CAT_Z_COLUMN[tuple(CAT_Z_COLUMN)[col - 4]], ""))
-            return "" if z is None else f"{z:+.1f}"
+            return self._text_rows[row_i][col]
         if role == Qt.ItemDataRole.BackgroundRole:
-            cat = tuple(CAT_Z_COLUMN)[col - 4]
-            z = _parse_z(row.get(CAT_Z_COLUMN[cat], ""))
-            if z is None:
-                return None
-            color = stat_color(
-                z, lower_is_better=DIRECTIONS[cat] == "lower", theme=self._theme
-            )
-            if color.alpha() == 0:
-                return None
-            return QBrush(color)
+            return self._colors[row_i][col - len(self.BASE_COLUMNS)]
         return None
 
     def name_at(self, row: int) -> str:
         """Pool name of model row ``row`` (for logging a selected player)."""
         return self._visible[row]["name"]
+
+    def header_text(self, col: int) -> str:
+        """Header label of column ``col`` (base columns, then CAT_LABELS)."""
+        if col < len(self.BASE_COLUMNS):
+            return self.BASE_COLUMNS[col]
+        return CAT_LABELS[tuple(CAT_Z_COLUMN)[col - len(self.BASE_COLUMNS)]]
+
+    def widest_text(self, col: int) -> str:
+        """Longest display text in column ``col`` (header included).
+
+        Used by the view to compute a font-metric column width —
+        ``resizeColumnToContents`` under-measures the stylesheet's mono
+        font and clipped cells/headers (e.g. "+3..", "alu").
+        """
+        best = self.header_text(col)
+        for row in self._text_rows:
+            if len(row[col]) > len(best):
+                best = row[col]
+        return best
 
 
 def _parse_z(text: str) -> float | None:
@@ -195,15 +313,54 @@ def _primary_pos(row: dict[str, str]) -> str:
     return (row.get("pos", "") or "").split("/")[0].strip()
 
 
+class _PoolSearchFilter(QSortFilterProxyModel):
+    """Substring (case-insensitive) filter over the pool-names model.
+
+    QCompleter's built-in matching is prefix-only; this proxy does the
+    real filtering so the dropdown shows partial matches ("jok" →
+    "Nikola Jokic") as the user types. QCompleter can't do this: with a
+    neutralized (empty) prefix it neither sets the line edit's text nor
+    fires its activated signal, so the board owns a small QListView
+    popup instead (see DraftBoard.__init__).
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._query = ""
+
+    def set_query(self, query: str) -> None:
+        self._query = (query or "").lower()
+        # begin/endResetModel re-runs filterAcceptsRow for every row.
+        # (invalidateFilter() used to be the cheap path, but Qt 6.11
+        # deprecated it and it no longer re-applies the filter — the
+        # popup then silently listed ALL players, not just matches.)
+        self.beginResetModel()
+        self.endResetModel()
+
+    def filterAcceptsRow(self, row: int, parent: QModelIndex) -> bool:  # noqa: N802
+        if not self._query:
+            return True
+        source = self.sourceModel()
+        name = (source.data(source.index(row, 0)) or "").lower()
+        return self._query in name
+
+    def matched_names(self) -> list[str]:
+        """Filtered names (the dropdown's current rows)."""
+        return [
+            str(self.data(self.index(r, 0))) for r in range(self.rowCount())
+        ]
+
+
 class DraftBoard(QWidget):
     """Autodraft-oriented draft helper: strip + players + relative +
-    rosters on the left, recommendations rail on the right.
+    rosters on the left.
 
     The snake order lives in ``self.snake`` (13 rounds x teams, even
     rounds reversed — ``_order_of`` mirrors ``league.snake_order``);
     keeper forfeits are shown in the roster panel and consume overall
-    pick numbers. Logging a pick (typed name, double-click, or "Log")
-    and undoing both persist and re-render every panel.
+    pick numbers. Logging a pick (typed name via the partial-match
+    dropdown, or double-click) and undoing both persist and re-render
+    every panel.
     """
 
     #: emitted when the user clicks "Setup…" — the host view opens the
@@ -228,6 +385,10 @@ class DraftBoard(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(8)
 
+        # The board owns ALL banners (offline notice + danger alerts) —
+        # the draft page's copy of the offline banner was removed
+        # (overhaul 3) because both showed identical text and rendered
+        # twice in the same window.
         self.offline_banner = QLabel("")
         self.offline_banner.setObjectName("banner-info")
         self.offline_banner.setWordWrap(True)
@@ -240,15 +401,20 @@ class DraftBoard(QWidget):
         self.alert_banner.setVisible(False)
         root.addWidget(self.alert_banner)
 
-        # Single full-width column; the former right rail (recommendations)
-        # is now a module above Comparison so horizontal space is not wasted.
-        left = QVBoxLayout()
-        root.addLayout(left, 1)
+        # Two columns: left = pick strip + pool table (the scrollable
+        # priority surface, keeps all leftover width); right = a fixed
+        # width rail (recommendations → comparison → roster, each at
+        # content size) that scrolls vertically.
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
 
-        left_panel = QWidget()
-        left_panel.setObjectName("panel")
-        left.addWidget(left_panel, 1)
-        inner = QVBoxLayout(left_panel)
+        self.left_panel = QWidget()
+        self.left_panel.setObjectName("panel")
+        # Content width only — the pool table is exactly as wide as its
+        # columns; leftover window width stays empty canvas (see
+        # _sync_panel_widths, which sets the fixed width per render).
+        row.addWidget(self.left_panel, 0)
+        inner = QVBoxLayout(self.left_panel)
         inner.setContentsMargins(8, 8, 8, 8)
         inner.setSpacing(8)
 
@@ -259,17 +425,36 @@ class DraftBoard(QWidget):
         strip_row.addWidget(self.current_label, 0)
 
         self.name_edit = QLineEdit()
-        self.name_edit.setPlaceholderText("player name (or double-click the table)")
+        self.name_edit.setPlaceholderText("player name (partial match — or double-click the table)")
         strip_row.addWidget(self.name_edit, 1)
+        # Live partial-match dropdown: a QListView popup over the proxy
+        # filter (QCompleter can't substring-match AND autofill — its
+        # activated path replaces the completion prefix, not the typed
+        # query). Typing populates the list; clicking a row (or Enter on
+        # the popup) fills the edit; the edit's own Enter commits the pick.
+        self._names_model = QStandardItemModel(self)
+        self._search_filter = _PoolSearchFilter(self)
+        self._search_filter.setSourceModel(self._names_model)
+        self.search_popup = QListView(self)
+        self.search_popup.setModel(self._search_filter)
+        self.search_popup.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+        self.search_popup.setWindowFlags(
+            Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint
+        )
+        self.search_popup.activated.connect(self._on_search_pick)
+        self.name_edit.textChanged.connect(self._on_search_text)
+        # Close the popup when the search box loses focus (tabbing away,
+        # clicking elsewhere). Row clicks still work: _on_search_pick hides
+        # the popup and refocuses the edit itself.
+        self.name_edit.installEventFilter(self)
 
         self.commit_button = QPushButton("Commit pick")
         self.commit_button.setProperty("ink", "true")
         self.commit_button.clicked.connect(self._commit)
         self.name_edit.returnPressed.connect(self._commit)
         strip_row.addWidget(self.commit_button, 0)
-        self.log_button = QPushButton("Log selected")
-        self.log_button.clicked.connect(self.log_selected)
-        strip_row.addWidget(self.log_button, 0)
         self.undo_button = QPushButton("Undo last")
         self.undo_button.clicked.connect(self.undo)
         strip_row.addWidget(self.undo_button, 0)
@@ -305,23 +490,52 @@ class DraftBoard(QWidget):
             QAbstractItemView.EditTrigger.NoEditTriggers
         )
         self.player_view.verticalHeader().setVisible(False)
-        # Name stretches to fill the leftover width (longest, most important
-        # text — ResizeToContents under-measures it with the stylesheet's
-        # mono font and clips); the rest size to their content
-        self.player_view.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Stretch
+        # Fixed row height: per-row sizeHintForRow was re-derived on every
+        # scroll step (measured ~0.2ms/row → ~180ms per 100 scroll steps);
+        # fixed 22px rows make scrolling a flat lookup (~1ms).
+        self.player_view.verticalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Fixed
         )
-        for _ci in range(1, self._player_model.columnCount()):
-            self.player_view.horizontalHeader().setSectionResizeMode(
-                _ci, QHeaderView.ResizeMode.ResizeToContents
-            )
+        self.player_view.verticalHeader().setDefaultSectionSize(22)
+        # Every column is Interactive and sized to its content ONCE per pool
+        # rebuild (``_fit_player_columns`` — font-metric widths). A persistent
+        # ResizeToContents mode re-measured all ~200 rows on every app
+        # restyle/theme toggle (~635ms of the ~750ms setStyleSheet cost);
+        # and Stretch on Name would balloon it on wide windows (user
+        # decision: longest-name width, leftover space stays empty).
+        self.player_view.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Interactive
+        )
         self.player_view.doubleClicked.connect(self._double_clicked)
+        self.player_view.setSortingEnabled(True)
         inner.addWidget(self.player_view, 1)
 
-        # --- recommendations (module above Comparison; was the right rail) ----
+        # --- right rail (recommendations → comparison → roster, scroll) ---
+        self.right_rail = QScrollArea()
+        right = self.right_rail
+        right.setFrameShape(QFrame.Shape.NoFrame)
+        right.setWidgetResizable(True)
+        # Horizontal scroll only when the window is too narrow for the
+        # rail's content width (fixed per render by _sync_panel_widths).
+        right.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        right_col = QWidget()
+        right.setWidget(right_col)
+        right_inner = QVBoxLayout(right_col)
+        right_inner.setContentsMargins(0, 0, 0, 0)
+        right_inner.setSpacing(8)
+        row.addWidget(right, 0)
+
+        # --- recommendations panel ---------------------------------------------
+        self.recs_panel = QWidget()
+        self.recs_panel.setObjectName("panel")
+        self.recs_panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        right_inner.addWidget(self.recs_panel, 0)
+        recs_inner = QVBoxLayout(self.recs_panel)
+        recs_inner.setContentsMargins(8, 8, 8, 8)
+        recs_inner.setSpacing(4)
         self.recs_title = QLabel("Recommendations —")
         self.recs_title.setObjectName("title")
-        inner.addWidget(self.recs_title, 0)
+        recs_inner.addWidget(self.recs_title, 0)
         top_row = QHBoxLayout()
         top_label = QLabel("Top")
         top_label.setObjectName("secondary")
@@ -332,7 +546,7 @@ class DraftBoard(QWidget):
         self.top_n_spin.valueChanged.connect(self._top_n_changed)
         top_row.addWidget(self.top_n_spin, 0)
         top_row.addStretch(1)
-        inner.addLayout(top_row, 0)
+        recs_inner.addLayout(top_row, 0)
         self.recs_grid = QTableWidget(0, 5)
         self.recs_grid.setHorizontalHeaderLabels(
             ["#", "Player", "Tag", "mkt / fit", "Reason"]
@@ -340,20 +554,20 @@ class DraftBoard(QWidget):
         self.recs_grid.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.recs_grid.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.recs_grid.verticalHeader().setVisible(False)
-        # content-width columns; Reason eats the leftover horizontal space
-        for _ci in range(4):
-            self.recs_grid.horizontalHeader().setSectionResizeMode(
-                _ci, QHeaderView.ResizeMode.ResizeToContents
-            )
+        # All columns content-width (Reason included) — the rail sizes to
+        # its widest panel's content, so the grid must not be greedy.
         self.recs_grid.horizontalHeader().setSectionResizeMode(
-            4, QHeaderView.ResizeMode.Stretch
+            QHeaderView.ResizeMode.ResizeToContents
         )
-        inner.addWidget(self.recs_grid, 0)
+        recs_inner.addWidget(self.recs_grid, 0)
 
         # --- comparison panel: my team vs the league (P3) ----------------------
         self.relative_panel = QWidget()
         self.relative_panel.setObjectName("panel")
-        left.addWidget(self.relative_panel, 0)
+        self.relative_panel.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum
+        )
+        right_inner.addWidget(self.relative_panel, 0)
         relative_inner = QVBoxLayout(self.relative_panel)
         relative_inner.setContentsMargins(8, 8, 8, 8)
         relative_inner.setSpacing(4)
@@ -378,7 +592,13 @@ class DraftBoard(QWidget):
         # --- roster panel (team dropdown + stat-colored roster) ----------------
         self.roster_panel = QWidget()
         self.roster_panel.setObjectName("panel")
-        left.addWidget(self.roster_panel, 0)
+        self.roster_panel.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum
+        )
+        right_inner.addWidget(self.roster_panel, 0)
+        right_inner.addStretch(1)
+        # Leftover window width (past pool panel + rail) stays empty canvas.
+        row.addStretch(1)
         roster_inner = QVBoxLayout(self.roster_panel)
         roster_inner.setContentsMargins(8, 8, 8, 8)
         roster_inner.setSpacing(4)
@@ -409,6 +629,12 @@ class DraftBoard(QWidget):
         self.roster_grid.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents
         )
+        # Content height only: the roster used to balloon to fill the
+        # leftover window height (one row in a ~300px box, overhaul-3
+        # screenshot). Maximum = never grows past its sizeHint.
+        self.roster_grid.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum
+        )
         roster_inner.addWidget(self.roster_grid, 0)
         self.roster_panel.setVisible(False)
 
@@ -419,8 +645,27 @@ class DraftBoard(QWidget):
     def _theme_name(self) -> str:
         return "dark" if self.service.settings().get("dark_mode") else "light"
 
+    def set_theme(self, theme_name: str) -> None:
+        """Recolor the players table on a theme switch (no full rebuild)."""
+        self._player_model.set_theme(theme_name)
+
     def _pos_filter_changed(self, pos: str) -> None:
         self._player_model.set_pos_filter("" if pos == "All" else pos)
+        self._fit_player_columns()
+
+    def _fit_player_columns(self) -> None:
+        """Fit every column to its content once (pool/filter change).
+
+        Widths come from the view's font metrics over the widest cell text
+        (``PlayerTableModel.widest_text`` — header included) plus margin for
+        item padding; no column stretches, so leftover horizontal space
+        stays empty table background. One-shot ``setColumnWidth`` keeps
+        restyle/theme-toggle cost at zero.
+        """
+        fm = self.player_view.fontMetrics()
+        for ci in range(self._player_model.columnCount()):
+            width = fm.horizontalAdvance(self._player_model.widest_text(ci)) + 24
+            self.player_view.setColumnWidth(ci, width)
 
     def _double_clicked(self, index: QModelIndex) -> None:
         self.log_selected()
@@ -449,15 +694,16 @@ class DraftBoard(QWidget):
             self._player_model.reset_pool(
                 [], set(), self._theme_name()
             )
+            self._fit_player_columns()
             _offline.hide_banner(self.offline_banner)
             self._set_alert("Sync the league first (League → Sync now)")
             self.current_label.setText("")
             self.commit_button.setEnabled(False)
-            self.log_button.setEnabled(False)
             self.undo_button.setEnabled(False)
             self.relative_panel.setVisible(False)
             self.roster_panel.setVisible(False)
             self._render_recs(None)
+            self._sync_panel_widths()
             return
 
         if _offline.is_manual(snapshot):
@@ -511,11 +757,14 @@ class DraftBoard(QWidget):
         self._player_model.reset_pool(
             self._pool.rows, excluded, self._theme_name()
         )
-        self.name_edit.setCompleter(
-            QCompleter(
-                [n for n in self._pool.names() if n not in self._excluded_names(report)]
-            )
-        )
+        self._fit_player_columns()
+        # Rebuild the search dropdown's source rows (excluded-aware);
+        # re-apply the current query so the popup stays in sync.
+        names = [n for n in self._pool.names() if n not in excluded]
+        self._names_model.setRowCount(len(names))
+        for i, name in enumerate(names):
+            self._names_model.setItem(i, 0, QStandardItem(name))
+        self._search_filter.set_query(self.name_edit.text())
         # POS filter options: distinct primary positions in the pool.
         # Signals stay live: restoring the kept text (or resetting to "All")
         # re-applies the model filter, so it can never desync from the combo.
@@ -546,13 +795,13 @@ class DraftBoard(QWidget):
         self._render_roster(report)
         self._render_relative(report)
         self._render_recs(report)
+        self._sync_panel_widths()
 
     def _render_strip(self) -> None:
         current = picks_mod.current_pick(self.snake, self.picks)
         total = len(self.snake)
         done = len(self.picks)
         self.commit_button.setEnabled(current is not None)
-        self.log_button.setEnabled(current is not None and self._player_model.rowCount() > 0)
         self.undo_button.setEnabled(bool(self.picks))
         if current is None:
             if self.snake:
@@ -564,6 +813,42 @@ class DraftBoard(QWidget):
             f"R{current.round} · pick {current.overall}/{total} · {current.team}"
         )
 
+    def eventFilter(self, obj, event) -> bool:
+        """Close the search popup when the name edit loses focus."""
+        if obj is self.name_edit and event.type() == QEvent.Type.FocusOut:
+            self.search_popup.hide()
+        return super().eventFilter(obj, event)
+
+    def _sync_panel_widths(self) -> None:
+        """Size both columns to their content (no dead space):
+
+        - the left panel is exactly the pool table's column-content width
+          (plus the table frame + panel margins/border);
+        - the right rail is exactly its widest panel's content width.
+
+        Leftover window width stays empty canvas (the row's stretch); on a
+        narrow window the rail's horizontal scrollbar takes over.
+        """
+        columns = self._player_model.columnCount()
+        table_w = sum(self.player_view.columnWidth(ci) for ci in range(columns))
+        # table frame (2px x2) + panel margins (8 x2) + panel border (2 x2)
+        self.left_panel.setFixedWidth(table_w + 4 + 16 + 4)
+        rail_w = max(
+            panel.sizeHint().width()
+            for panel in (self.recs_panel, self.relative_panel, self.roster_panel)
+        )
+        self.right_rail.setFixedWidth(rail_w)
+
+    def _sync_recs_height(self) -> None:
+        """Keep the recs grid as tall as its rows: a QTableWidget's
+        sizeHint covers only a handful of rows, and in the scrollable
+        right rail the panel would otherwise collapse (Maximum policy
+        = content size, and the content is the grid)."""
+        grid = self.recs_grid
+        header_h = grid.horizontalHeader().height()
+        row_h = grid.verticalHeader().defaultSectionSize() or 22
+        grid.setMinimumHeight(header_h + grid.rowCount() * row_h + 4)
+
     def _render_recs(self, report) -> None:
         """Recommendations rail: P6 scorer ordering with tag chips, a
         mkt/fit summary parsed from the scorer's reason bits, a value-gap
@@ -571,6 +856,7 @@ class DraftBoard(QWidget):
         unknown), and the top-N spin (persisted)."""
         grid = self.recs_grid
         grid.setRowCount(0)
+        self._sync_recs_height()
         if not self.start_order or report is None:
             self.recs_title.setText("Recommendations —")
             return
@@ -593,6 +879,7 @@ class DraftBoard(QWidget):
         )
         self.recs_title.setText(f"Recommendations (top {len(suggestions)})")
         grid.setRowCount(len(suggestions))
+        self._sync_recs_height()
         theme = THEMES[self._theme_name()]
         for r, suggestion in enumerate(suggestions):
             grid.setItem(r, 0, QTableWidgetItem(str(r + 1)))
@@ -613,7 +900,11 @@ class DraftBoard(QWidget):
             grid.setItem(r, 2, tag_item)
             grid.setItem(r, 3, QTableWidgetItem(self._mkfit(suggestion)))
             grid.setItem(
-                r, 4, QTableWidgetItem(", ".join(suggestion.cats) or "\u2014")
+                r,
+                4,
+                QTableWidgetItem(
+                    ", ".join(CAT_LABELS[c] for c in suggestion.cats) or "\u2014"
+                ),
             )
 
     @staticmethod
@@ -803,7 +1094,7 @@ class DraftBoard(QWidget):
     def _excluded_names(self, report=None) -> set[str]:
         """Names to keep out of suggestions: drafted/kept + bridged pool names.
 
-        Shared by the pick-name completer and the recommendations rail.
+        Shared by the pick-name search dropdown and the recommendations rail.
         With a ``report`` (bridged picks) its matched pairs exclude both
         sides; without one the raw entered pick names are used directly.
         Opted-out keepers are excluded from the forfeited-pick snake but
@@ -823,11 +1114,36 @@ class DraftBoard(QWidget):
         self.alert_banner.setText(text)
         self.alert_banner.setVisible(bool(text))
 
+    def _on_search_text(self, text: str) -> None:
+        """Re-filter the dropdown on every keystroke and pop it open.
+
+        Re-emitting the query through ``set_query`` is a no-op for an
+        unchanged filter (invalidateFilter), so autofill from a click
+        doesn't re-pop the popup.
+        """
+        self._search_filter.set_query(text)
+        names = self._search_filter.matched_names()
+        if text and names:
+            self.search_popup.setFixedWidth(self.name_edit.width())
+            self.search_popup.move(
+                self.name_edit.mapToGlobal(QPoint(0, self.name_edit.height()))
+            )
+            self.search_popup.show()
+        else:
+            self.search_popup.hide()
+
+    def _on_search_pick(self, index: QModelIndex) -> None:
+        """Autofill the search bar with the clicked dropdown entry."""
+        self.name_edit.setText(str(self._search_filter.data(index)))
+        self.search_popup.hide()
+        self.name_edit.setFocus()
+
     def _commit(self) -> None:
+        self.search_popup.hide()
         self._log(self.name_edit.text().strip())
 
     def log_selected(self) -> None:
-        """Log the player table's selected row (double-click or "Log")."""
+        """Log the player table's selected row (double-click)."""
         selected = self.player_view.selectionModel().selectedRows()
         if not selected:
             self._set_alert("Select a player in the table first.")

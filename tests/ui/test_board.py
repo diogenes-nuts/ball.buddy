@@ -14,7 +14,7 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"  # must be set before any PySide6 im
 
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QHeaderView
+from PySide6.QtWidgets import QApplication, QHeaderView, QSizePolicy
 
 from ball_buddy.domain import picks as picks_mod
 from ball_buddy.domain.keepers import KeeperEntry
@@ -84,10 +84,18 @@ def test_layout_no_grid_widget(qapp, tmp_path):
     assert board.relative_grid.rowCount() == 4
     # roster panel: Name/Pos/Value/From + 9 z columns
     assert board.roster_grid.columnCount() == 4 + 9
-    # players table: Name stretches, the rest size to content
+    # players table: ALL columns Interactive and fitted to content once per
+    # pool change via font-metric widths (persistent ResizeToContents
+    # re-measured every row on each app restyle/theme toggle; Stretch on Name
+    # would balloon it on wide windows — user decision: longest-name width,
+    # leftover space stays empty).
     hdr = board.player_view.horizontalHeader()
-    assert hdr.sectionResizeMode(0) == QHeaderView.ResizeMode.Stretch
-    assert hdr.sectionResizeMode(1) == QHeaderView.ResizeMode.ResizeToContents
+    for ci in range(board._player_model.columnCount()):
+        assert hdr.sectionResizeMode(ci) == QHeaderView.ResizeMode.Interactive
+    assert board.player_view.columnWidth(0) > 0
+    assert board.player_view.columnWidth(1) > 0
+    # fixed row height (per-row sizeHintForRow was re-derived on scroll)
+    assert board.player_view.verticalHeader().defaultSectionSize() == 22
     # text cells must not leak into CheckStateRole (digit cells would render
     # checkbox indicators)
     rank_idx = board._player_model.index(0, 3)
@@ -97,16 +105,16 @@ def test_layout_no_grid_widget(qapp, tmp_path):
     assert board.top_n_spin.value() == 10
     assert (board.top_n_spin.minimum(), board.top_n_spin.maximum()) == (1, 20)
     assert board.commit_button.text() == "Commit pick"
-    assert board.log_button.text() == "Log selected"
+    # single pick path: no separate "Log selected" button (user decision)
+    assert not hasattr(board, "log_button")
 
 
 def test_strip_format(qapp, tmp_path):
     board = make_board(tmp_path, [KeeperEntry("Red", "Big Keeper", 1)])
     # Red forfeits R1 order 1 -> current is R1, overall 2/26, Blue
     assert board.current_label.text() == "R1 \u00b7 pick 2/26 \u00b7 Blue"
-    assert board.name_edit.completer() is not None
+    assert board.search_popup.model() is board._search_filter
     assert board.commit_button.isEnabled()
-    assert not board.log_button.isEnabled()  # empty pool -> no rows to log
 
 
 # -- players table + logging ----------------------------------------------------
@@ -163,22 +171,57 @@ def test_commit_writes_file_and_updates_panels(qapp, tmp_path):
     assert board.name_edit.text() == ""
 
 
-def test_log_selected_button_and_double_click(qapp, tmp_path):
+def test_double_click_logs_selected_row(qapp, tmp_path):
     board = make_board(tmp_path, [])
     write_pool(board.service, POOL)
     board.refresh()
     # no selection: alert, nothing logged
-    board.log_button.click()
+    board.log_selected()
     assert board.picks == []
     assert "Select a player" in board.alert_banner.text()
-    # select the first row, log via the button
+    # select the first row, log via double-click
     board.player_view.selectRow(0)
-    board.log_button.click()
+    board.player_view.doubleClicked.emit(board._player_model.index(0, 0))
     assert [p.player for p in board.picks] == ["One Aardvark"]
     # double-click logs the next selected row
     board.player_view.selectRow(0)  # model shrank: now Two Bumble
     board.player_view.doubleClicked.emit(board._player_model.index(0, 0))
     assert [p.player for p in board.picks] == ["One Aardvark", "Two Bumble"]
+
+
+def test_search_dropdown_partial_match(qapp, tmp_path):
+    board = make_board(tmp_path, [])
+    write_pool(board.service, POOL)
+    board.refresh()
+    # typing populates the dropdown with PARTIAL (substring) matches, not
+    # just prefixes — "jok"-style mid-word queries are the point
+    board.name_edit.setText("chee")
+    names = board._search_filter
+    matched = [
+        names.data(names.index(r, 0)) for r in range(names.rowCount())
+    ]
+    assert matched == ["Three Cheetah"]
+    # "ee" matches several mid-word, and the edit's completer is the proxy
+    # filter (so the popup shows exactly these rows)
+    board.name_edit.setText("ee")
+    matched = [
+        board._search_filter.data(board._search_filter.index(r, 0))
+        for r in range(board._search_filter.rowCount())
+    ]
+    assert "Three Cheetah" in matched
+    assert "Four Deer" in matched
+    assert "One Aardvark" not in matched
+    # the search popup is the proxy filter — so it shows exactly the
+    # filtered rows, and activating one autofills the edit.
+    assert board.search_popup.model() is board._search_filter
+    board.search_popup.activated.emit(board._search_filter.index(0, 0))
+    assert board.name_edit.text() == matched[0]
+    # the dropdown source is excluded-aware (rebuilt on render)
+    board2 = make_board(tmp_path, [KeeperEntry("Red", "One Aardvark", 1)])
+    write_pool(board2.service, POOL)
+    board2.refresh()
+    board2.name_edit.setText("one")
+    assert board2._search_filter.rowCount() == 0  # keeper excluded
 
 
 def test_commit_rejects_empty_and_already_picked(qapp, tmp_path):
@@ -282,7 +325,8 @@ def test_recs_rail_scorer_path(qapp, tmp_path):
     # mkt/fit summary parsed from the reason bits
     mkfit = board.recs_grid.item(0, 3).text()
     assert mkfit.startswith("mkt ") and "/ fit " in mkfit
-    assert board.recs_grid.item(0, 4).text() == "pts"  # need cats (fixture: z_pts only)
+    # need cats human-labeled via CAT_LABELS (overhaul 3: was raw "pts")
+    assert board.recs_grid.item(0, 4).text() == "Pts"  # fixture: z_pts only
     # top_n default 10 caps the rail
     assert board.recs_grid.rowCount() <= 10
 
@@ -328,16 +372,17 @@ def test_relative_panel_rows_and_gap_colors(qapp, tmp_path):
     grid = board.relative_grid
     assert grid.columnCount() == 9
     assert grid.rowCount() == 4
-    # col 0 = pts: Alpha is best (12.0 vs 1.0 per game) -> BUILD, neg gap
-    assert grid.item(0, 0).text() == "12.00"  # My team row, per game
-    assert grid.item(2, 0).text().startswith("-")  # Gap row: ahead
-    assert grid.item(3, 0).text() == "BUILD"
-    # col 1 = reb: Alpha is worst -> PUNT, positive gap (behind)
-    assert grid.item(3, 1).text() == "PUNT"
-    assert grid.item(2, 1).text().startswith("+")
+    # Display order: col 3 = pts, col 4 = reb (fg/ft/3P are cols 0-2).
+    # pts: Alpha is best (12.0 vs 1.0 per game) -> BUILD, neg gap
+    assert grid.item(0, 3).text() == "12.00"  # My team row, per game
+    assert grid.item(2, 3).text().startswith("-")  # Gap row: ahead
+    assert grid.item(3, 3).text() == "BUILD"
+    # reb: Alpha is worst -> PUNT, positive gap (behind)
+    assert grid.item(3, 4).text() == "PUNT"
+    assert grid.item(2, 4).text().startswith("+")
     # gap row stat-coloring: pts ahead -> greenish, reb behind -> reddish
-    pts_bg = grid.item(2, 0).background()
-    reb_bg = grid.item(2, 1).background()
+    pts_bg = grid.item(2, 3).background()
+    reb_bg = grid.item(2, 4).background()
     from PySide6.QtCore import Qt as _Qt
 
     assert pts_bg.style() == _Qt.BrushStyle.SolidPattern
@@ -425,7 +470,6 @@ def test_no_snapshot_shows_alert(qapp, tmp_path):
     assert "Sync the league first" in board.alert_banner.text()
     assert not board.alert_banner.isHidden()
     assert not board.commit_button.isEnabled()
-    assert not board.log_button.isEnabled()
     assert not board.relative_panel.isVisible()
     assert not board.roster_panel.isVisible()
 
@@ -476,3 +520,113 @@ def test_draft_view_embeds_board(qapp, tmp_path):
     view.service.snapshot_path.unlink()
     view.refresh()
     assert "Sync the league first" in view.board.alert_banner.text()
+
+
+# -- overhaul 4: two-column layout + sortable pool table ----------------------
+
+
+SORT_POOL = [
+    {"name": "Alpha", "pos": "PG", "rank": "1", "value": "10", "z_pts": "1.1"},
+    {"name": "Beta", "pos": "SG", "rank": "2", "value": "9", "z_pts": "0.4"},
+    {"name": "Gamma", "pos": "SF", "rank": "3", "value": "8", "z_pts": "9.9"},
+    {"name": "Delta", "pos": "PF", "rank": "4", "value": "7", "z_pts": ""},
+    {"name": "Epsilon", "pos": "C", "rank": "5", "value": "6", "z_pts": "2.0"},
+]
+
+
+def test_pool_table_sortable_by_parsed_z(qapp, tmp_path):
+    from ball_buddy.domain.scorer import CAT_Z_COLUMN
+
+    board = make_board(tmp_path, [])
+    write_pool(board.service, SORT_POOL)
+    board.refresh()
+    model = board._player_model
+    pts_col = 4 + tuple(CAT_Z_COLUMN).index("pts")
+    assert board.player_view.isSortingEnabled()
+    # Default order = pool order (Alpha first).
+    assert model.name_at(0) == "Alpha"
+
+    model.sort(pts_col, Qt.SortOrder.AscendingOrder)
+    # Numeric, not text: "+0.4" < "+1.1" < "+2.0" < "+9.9"; missing last.
+    assert _players_names(board) == ["Beta", "Alpha", "Epsilon", "Gamma", "Delta"]
+
+    model.sort(pts_col, Qt.SortOrder.DescendingOrder)
+    # Missing stays LAST in both directions (sentinel, not reverse).
+    assert _players_names(board) == ["Gamma", "Epsilon", "Alpha", "Beta", "Delta"]
+
+    # Rank sorts numerically too ("10" < "2" would fail on text sort).
+    model.sort(3, Qt.SortOrder.AscendingOrder)
+    assert _players_names(board) == ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"]
+
+    # POS filter resets the sort (pool order of the filtered subset).
+    board.pos_combo.setCurrentText("PG")
+    assert _players_names(board) == ["Alpha"]
+
+
+def test_two_column_layout_right_rail_scroll(qapp, tmp_path):
+    from PySide6.QtWidgets import QScrollArea
+
+    board = make_board(tmp_path, [])
+    write_pool(board.service, POOL)
+    board.refresh()
+    rail = board.right_rail
+    assert isinstance(rail, QScrollArea)
+    assert rail.widgetResizable()
+    # Both columns are content-sized (no dead space, no greedy stretch):
+    # the rail is exactly its widest panel's content width.
+    max_panel = max(
+        p.sizeHint().width()
+        for p in (board.recs_panel, board.relative_panel, board.roster_panel)
+    )
+    assert rail.width() == max_panel
+    # The left panel is exactly the pool table's column-content width
+    # (plus table frame + panel margins/border).
+    columns = board._player_model.columnCount()
+    table_w = sum(board.player_view.columnWidth(ci) for ci in range(columns))
+    assert board.left_panel.width() == table_w + 4 + 16 + 4
+    right_col = rail.widget()
+    # Recs, Comparison, Roster in that order, each a panel.
+    assert right_col.layout().itemAt(0).widget() is board.recs_panel
+    assert right_col.layout().itemAt(1).widget() is board.relative_panel
+    assert right_col.layout().itemAt(2).widget() is board.roster_panel
+    for panel in (board.recs_panel, board.relative_panel, board.roster_panel):
+        assert panel.objectName() == "panel"
+        assert panel.sizePolicy().verticalPolicy() == QSizePolicy.Policy.Maximum
+    # Recs grid stays as tall as its rows (no collapse in the rail).
+    assert board.recs_grid.minimumHeight() > 0
+    # Recs Reason column is content-sized (not a greedy Stretch).
+    assert (
+        board.recs_grid.horizontalHeader().sectionResizeMode(4)
+        != QHeaderView.ResizeMode.Stretch
+    )
+
+
+def test_search_dropdown_narrows_and_closes_on_blur(qapp, tmp_path):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QFocusEvent
+
+    board = make_board(tmp_path, [])
+    write_pool(board.service, POOL)
+    board.refresh()
+    model = board.search_popup.model()
+    full = model.rowCount()
+    assert full == len(POOL)
+    # Typing a substring narrows the dropdown (only the dropdown — the pool
+    # table itself is never filtered).
+    board.name_edit.setText("one")
+    narrowed = [
+        str(model.data(model.index(r, 0))) for r in range(model.rowCount())
+    ]
+    assert model.rowCount() < full
+    assert all("one" in n.lower() for n in narrowed)
+    assert "One Aardvark" in narrowed
+    # Clearing restores the full list.
+    board.name_edit.clear()
+    assert model.rowCount() == full
+    # Losing focus closes the popup (routed through the event filter, as Qt
+    # dispatches it).
+    board.name_edit.setText("one")
+    board.search_popup.show()
+    assert board.search_popup.isVisible()
+    qapp.sendEvent(board.name_edit, QFocusEvent(QEvent.Type.FocusOut))
+    assert not board.search_popup.isVisible()

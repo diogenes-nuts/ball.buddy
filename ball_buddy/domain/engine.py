@@ -28,12 +28,20 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field
 
-# The standard 9 categories in fixed display order (league.py keys).
+# The standard 9 categories in fixed display order (league.py keys):
+# FG%, FT%, 3P, Pts, Reb, Ast, Stl, Blk, TO.
 CATS: tuple[str, ...] = (
+    "fg_pct", "ft_pct", "three", "pts", "reb", "ast", "stl", "blk", "to"
+)
+COUNT_CATS: tuple[str, ...] = ("three", "pts", "reb", "ast", "stl", "blk", "to")
+PCT_CATS: tuple[str, ...] = ("fg_pct", "ft_pct")
+
+# Fixed Monte-Carlo draw order, deliberately independent of the display
+# order in CATS: the seeded RNG draws in this order, so reordering CATS for
+# presentation never shifts seeded win-probs.
+MC_DRAW_ORDER: tuple[str, ...] = (
     "pts", "reb", "ast", "stl", "blk", "to", "three", "fg_pct", "ft_pct"
 )
-COUNT_CATS: tuple[str, ...] = ("pts", "reb", "ast", "stl", "blk", "to", "three")
-PCT_CATS: tuple[str, ...] = ("fg_pct", "ft_pct")
 
 # Engine category key -> canonical players.csv per-game column.
 COUNT_COLUMN: dict[str, str] = {
@@ -298,7 +306,7 @@ def matchup(
     for _ in range(trials):
         trial_a = 0
         trial_b = 0
-        for cat in CATS:
+        for cat in MC_DRAW_ORDER:
             if cat in COUNT_CATS:
                 av = sum(max(0.0, rng.gauss(mu, sigma)) for mu, sigma in a_counts[cat])
                 bv = sum(max(0.0, rng.gauss(mu, sigma)) for mu, sigma in b_counts[cat])
@@ -344,7 +352,8 @@ def win_prob(
 
 
 __all__ = [
-    "CATS", "COUNT_CATS", "PCT_CATS", "DIRECTIONS", "REL_SIGMA",
+    "CATS", "COUNT_CATS", "PCT_CATS", "MC_DRAW_ORDER",
+    "DIRECTIONS", "REL_SIGMA",
     "PlayerProjection", "RosterProjection", "MatchupResult",
     "project_player", "project_roster", "matchup", "win_prob",
 ]

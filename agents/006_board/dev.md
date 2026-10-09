@@ -1,5 +1,31 @@
 # 006_board — dev
 
+## Plan: Draft UI/UX overhaul (2026-10-08)
+
+Context: user screenshot review (Screenshot 2026-10-08 091253.png) + full source pass.
+Confirmed visual bugs: stat columns clip mid-character (+3.., 15.-, header "alu"/"To");
+Name column stretches to ~55% width in dead space; recs Reason leaks internal cat keys
+(fg_pct, ft_pct, three, pts, ast, stl, blk); offline banner rendered twice (DraftView +
+DraftBoard, identical text); two titles stacked ("draft" + "Draft board"); pool table
+gets ~6.5 visible rows while Roster (1 row) swallows ~300px of stretch; no column
+sorting; Commit + Log selected are redundant pick paths.
+
+User decisions (2026-10-08):
+
+- Name column: sized to the longest name (ResizeToContents), NOT stretched to fill
+  leftover width (fullscreen would stretch it absurdly). Leftover width stays empty.
+- Player search: a visible dropdown list under the search bar; partial (substring,
+  not just prefix) matches populate it as the user types; clicking an entry
+  autofills the search bar. "Log selected" button is dropped. Double-click the pool
+  table or press Enter still logs the pick.
+- Rest of my proposed plan approved: humanized recs Reason, two-column layout with
+  scrollable right column (pool + strip left; Recs/Comparison/Roster right),
+  sortable pool columns, dedupe banner + titles, stop Roster stretch.
+
+Phases (each: pytest + ruff green, per-directory runs; offscreen UI tests where they
+exist; verify against a screenshot when the user can provide one) — phases 1–5 done
+(see done.md).
+
 ## Plan: Draft v2 (before 2026-10-15..20 draft; ~1 week)
 
 Context: Yahoo 403 persists post-dev-program-acceptance → offline-first; the board is a

@@ -1,5 +1,115 @@
 # 006_board — done
 
+## 2026-10-08 — overhaul 5 — Screenshot-review fixes: search dropdown actually narrows (Qt 6.11 neutered invalidateFilter — root cause), popup closes on focus-out, both board columns content-width left-packed (replaces the stretch + RAIL_WIDTH=480 from overhaul 4), teal accent tokens on active UI state app-wide
+
+### 5.1 — Search dropdown bug (user: "it shows ALL players in the drop down, not only the names with the searched term")
+
+- **Root cause:** the popup proxy's `set_query` re-filtered via `QSortFilterProxyModel.invalidateFilter()`, which Qt 6.11 **deprecated and turned into a no-op** — the popup silently kept showing every name. Verified offscreen before fixing.
+- Fix: `set_query` → `beginResetModel()`/`endResetModel()` (proxy re-queries rows on reset). Verified: typing narrows to the matching rows, clearing restores the full list. Scope per user: **only the dropdown narrows** — the pool table itself is never filtered by the search box.
+- Popup now **closes when the search box loses focus**: `name_edit` event filter → `QEvent.Type.FocusOut` → `search_popup.hide()`. Click-to-autofill is safe (pick handler hides the popup first; the popup carries `Qt.Popup`, so outside-click auto-close is handled by Qt).
+
+### 5.2 — Content-width columns, no dead space (user: "the side rail should also be exactly its content width if the window is wide enough, only scroll horizontally on narrow")
+
+- `_sync_panel_widths()` (called at the end of every `render()` and in the refresh no-snapshot path): left panel = pool table's exact column-content width (sum of column widths + table frame 4px + panel margins 16px + panel border 4px); right rail = its widest panel's sizeHint width. Both left-packed; the row's stretch keeps leftover window width as empty canvas. Narrow window: the rail's horizontal scrollbar (AsNeeded) takes over; pool keeps priority.
+- Recs "Reason" column: `Stretch` → `ResizeToContents` (it was what made the rail greedy, and the grid had a fixed 480px fallback).
+
+### 5.3 — Teal accent on active UI (user: "teal sounds great… accents on active ui functions throughout the entire app would be nice")
+
+- New theme tokens `accent`/`accent_text` — light `#16605A` on `#F5EFE0`, dark `#4FD1C5` on `#1B1913` — applied to every ACTIVE-state control: nav active tab (was ink), checked checkboxes, input focus border, text selections (QLineEdit + popup/combo list items), combo/list selections, and table rows (full-row `QTableView::item:selected` background, light + dark, explicit rules for both QTableWidget and QTableView — QSS does not inherit between the two).
+- Ink primary buttons deliberately stay ink (action, not state — flagged to user as a judgment call).
+
+Tests: `test_search_dropdown_narrows_and_closes_on_blur` (narrowing + restore + focus-out close), `test_two_column_layout_right_rail_scroll` updated (rail == max panel content width, left panel == table content + chrome, no inner h-scrollbar), Reason-column mode assert. All ui per-file green, ruff clean, exe rebuilt.
+
+## 2026-10-08 — overhaul 4 — Two-column layout: left = pick strip + pool table (priority surface), right = scrollable rail Recs → Comparison → Roster (content-size panels); pool table columns sortable by header click (model sorts by parsed z, missing last in both directions). *(Overhaul 5 later made both columns content-width left-packed instead of stretch + fixed 480.)*
+
+4. **Two-column layout** — board became left column (pick strip + pool table, the
+   scrollable priority surface, keeps all leftover width) + right column (QScrollArea:
+   Recommendations, then Comparison, then Roster, each a panel at content size).
+   Right rail fixed preferred width (RAIL_WIDTH=480), vertical scroll only; recs rows
+   stay NoSelection. Pool-table columns sortable by header click, sorted by parsed
+   values (z columns by parsed float, Rank by int, Name/Pos case-insensitive).
+
+   Implemented in `board.py`: layout is `root → alert_banner + QHBoxLayout(row)`;
+   `row` holds `left_panel` (stretch 1: strip + POS filter + pool table) and the
+   right rail `self.right_rail` (QScrollArea, NoFrame, widgetResizable, h-scrollbar
+   AlwaysOff, `setFixedWidth(RAIL_WIDTH)`) wrapping a plain widget whose layout holds
+   `recs_panel → relative_panel → roster_panel → addStretch`. Recs moved into its own
+   panel (new `recs_panel`, Preferred/Maximum, 8px margins) above Comparison in the
+   rail; Comparison and Roster panels re-parented to the rail (both now Preferred/
+   Maximum). `recs_grid.setMinimumHeight(header + rows*22 + 4)` in `_sync_recs_height()`
+   (called at both `setRowCount` sites) — a QTableWidget sizeHint covers only a few
+   rows and would collapse in the scroll rail. Sorting: `player_view
+   .setSortingEnabled(True)`; `PlayerTableModel.sort()` (QAbstractTableModel.sort is a
+   NO-OP by default — a data role alone does nothing) stores `_sort_key (col, asc)`
+   and re-runs `_rebuild`, which `sorted()`s the filtered rows by `_row_sort_key(row,
+   col, ascending)`: Name/Pos case-folded, Value/Rank/z by parsed float via
+   `_parse_z`, missing values `(1,)` sentinel LAST in both directions — the number is
+   negated for descending instead of using `reverse=True` (which flips the sentinel to
+   the front). `set_pos_filter`/`reset_pool` clear the sort (pool order).
+   Module docstring rewritten for the two-column layout. `QFrame` + `QScrollArea`
+   imports added.
+   Notes: the plan's "model supplies a data role" became a real model-side `sort()`
+   (Qt requires it; the data role was only the mechanism for *how* to order). Roster
+   grid's 13 content-width columns (~630px) exceed the 480 rail → the roster panel
+   gets its own horizontal scrollbar inside the panel (QTableWidget default AsNeeded);
+   accepted — moving the roster to the left column was the alternative.
+   Tests (test_board.py): `test_pool_table_sortable_by_parsed_z` (parsed-z asc/desc
+   numeric order — "+0.4"<"+1.1"<"+2.0"<"+9.9", missing last in BOTH directions, rank
+   numeric "1"<"10", POS filter resets sort) + `test_two_column_layout_right_rail_
+   scroll` (panels are rail-viewport children in order, rail width 480, Maximum
+   vertical policy, recs min-height > 0).
+   Status: done — pool table is the priority surface with sortable numeric columns;
+   recs/comparison/roster sit in a scrollable content-size rail. Visual verify pending
+   (no local snapshot to render).
+
+## 2026-10-08 — overhaul 3 — Recs + chrome cleanup: recs Reason human-labeled (CAT_LABELS), single offline banner (board owns all banners; page keeps keepers alert only), redundant "Draft board" title + page status banner removed, Roster panel stops stretching, stale docstring fixed
+
+3. **Recs + chrome cleanup** — recs Reason column shows human labels via CAT_LABELS
+   (FG%/FT%/3P/Pts/Reb/Ast/Stl/Blk/To) instead of raw keys; remove the duplicate
+   offline banner (keep the board-level one; the DraftView one stays only for the
+   no-snapshot danger case or is removed — pick whichever renders exactly one banner
+   in every state and say which); remove the redundant "Draft board" title; Roster
+   panel stops stretching to fill leftover height (content height, no stretch factor);
+   fix the stale module docstring in board.py ("recommendations rail on the right").
+
+   Implemented: recs Reason now joins `CAT_LABELS[c]` (was raw cat keys). Banner
+   dedupe — the **board owns ALL banners** (offline notice + danger alerts, including
+   the no-snapshot "Sync the league first"); `DraftView` dropped its own offline
+   banner, its (always-empty) status banner, the redundant "Draft board" title, and
+   the `_offline` import; the page's `alert_banner` is now keepers-only (over-cap /
+   keepers.json parse). The Roster panel's grid got
+   `QSizePolicy(Preferred, Maximum)` so it no longer balloons to fill the leftover
+   window height. board.py module docstring corrected (recs sit between the pool table
+   and Comparison; banners live on the board).
+
+## 2026-10-08 — overhaul 2 — Search dropdown: QLineEdit + QListView popup with live partial (substring) matches that autofill on click; dropped the redundant Log selected button (double-click + Enter remain)
+
+2. **Search dropdown + single pick path** — the name edit's completer becomes a themed,
+   visible dropdown with PARTIAL (substring, case-insensitive) matching of pool names
+   (QCompleter over a proxy model, or custom filter model; popup styled from theme
+   tokens — background/outline/radius, readable in both themes); selecting an entry
+   fills the edit. Drop the "Log selected" button entirely (double-click + Enter remain).
+   Completer list = current excluded-aware name set (keep the render() wiring).
+
+   Implemented as a self-owned `QLineEdit` + `QListView` popup (NOT QCompleter): an
+   empty-prefix QCompleter neither sets the line edit's text nor fires its activated
+   signal (both verified), so the board owns `_PoolSearchFilter` (a substring,
+   case-insensitive `QSortFilterProxyModel` over an excluded-aware
+   `QStandardItemModel` of pool names) and a themed `search_popup` QListView. Typing
+   re-filters + pops the list under the edit; clicking a row (`activated`) autofills
+   the edit; the edit's own Enter commits. "Log selected" button removed (double-click
+   + Enter remain); `theme.py` gained a `QListView` rule so the popup is themed in
+   both palettes.
+
+## 2026-10-08 — overhaul 1 — Pool table columns: font-metric content widths for all columns (fixes clipped z-cells/headers), Name no longer stretches — leftover space stays empty
+
+1. **Pool table readability** — stat columns get a fixed per-column width wide enough
+   for the mono font + 1-decimal z (no clipping of value cells OR headers); Name column
+   switches from Stretch to ResizeToContents (longest-name width, re-fit on pool/filter
+   change via existing `_fit_player_columns`). Leftover horizontal space is left empty
+   (table background), not absorbed by any column.
+
+
 ## 2026-10-03 — M2.1 — Keeper entry (slice 1/3 of draft board): keepers domain model (team, pool-bridged player, cost round, opt-out), atomic persistence to data/keepers.json, bulk entry grid in Draft view (24 keepers, per-team cap validation, loud unmatched flags, cap-drop alert). 128 tests green, ruff clean.
 
 - `domain/keepers.py`: model + validation (max 2 active/team, cost round 1–13, duplicate player across teams = error); opt-out semantics (player back to pool, pick back to team).
