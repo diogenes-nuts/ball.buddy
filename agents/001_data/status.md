@@ -15,4 +15,8 @@ Player pool: Hashtag import-v4 salvage + name bridging. "How good players are" (
 ## R3 (2026-10-11)
 
 - `naming._suggest` dropped its redundant `pool_norm_all` parameter (always identical to `pool_norm`); internal-only signature.
+
+## R5b (2026-10-11)
+
+- `naming.bridge` precomputes the pool's (norm, base, suffix, last, displays) tuples once per call (was re-splitting every pool name for every roster name in the containment loop + `_suggest`); matching semantics unchanged, `_suggest` is now internal-only (takes the precomputed list).
 Plans: dev.md (P4 inbox done; P5 reconcile done). History: git log.

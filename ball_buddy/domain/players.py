@@ -24,9 +24,6 @@ class PlayerPool:
         for row in self.rows:
             key = normalize(row["name"])
             self._by_name.setdefault(key, []).append(row)
-        self._by_raw: dict[str, dict[str, str]] = {
-            row["name"]: row for row in self.rows
-        }
 
     def __len__(self) -> int:
         return len(self.rows)

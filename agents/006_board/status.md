@@ -47,4 +47,8 @@ Unchanged from before the rewrite: SetupDialog owns team list/order/keepers/my-t
 ## R4 (2026-10-11)
 
 - Recommendations rail: `Suggestion` now carries structured `market`/`fit_z` fields (scorer populates; `fit_z` = raw weighted fit, None on a degenerate fit range; M2.3 fallback stays None → em dash). `board._mkfit` reads the fields directly — the reason-string regex parsing (`_MKT_RE`/`_FIT_RE`) is gone; reason strings unchanged.
+
+## R5b (2026-10-11)
+
+- Roster resolution (shared `ui/views/_roster.py`) is now memoized on the mtimes of players.csv/keepers.json/draft_picks.json/aliases.json — view actions stop re-parsing four files per click, and the double pool-load inside `team_roster_rows` is gone. `board.render()` computes the team projections once (was 3×) and skips the names-model rebuild when the excluded set is unchanged.
 Plans: dev.md. History: git log; done.md.

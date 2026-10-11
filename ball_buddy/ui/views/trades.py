@@ -290,10 +290,7 @@ class TradeView(QWidget):
         }
         while self.give_grid.count():
             item = self.give_grid.takeAt(0)
-            layout = item.layout()
-            if layout is not None:
-                del layout
-            elif item.widget() is not None:
+            if item.widget() is not None:
                 if item.widget() not in live:
                     item.widget().deleteLater()
         self.give_grid.addWidget(QLabel("I give"), 0, 0)

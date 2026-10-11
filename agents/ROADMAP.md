@@ -24,11 +24,12 @@ Top-level plan for ball.buddy, ported from `agents/SPEC.md` §7 (the spec remain
 - `005_advisor` — waiver, lineup, trade logic (consumes 004_engine).
 - `006_board` — draft-day board (first feature, M2).
 
-## Open plan — review remediation (2026-10-14)
+## Done — review remediation (2026-10-14 → 2026-10-15)
 
-Full-repo code review produced a six-phase remediation plan: **agents/REVIEW-FIXES.md** (R1 correctness bugs → R2 Yahoo error handling → R3 shared resolver refactor → R4 structured Suggestion fields → R5 caching/perf → R6 dead code + hygiene). Runs before/alongside any new feature work; per-phase bookkeeping in the touched components' dev.md stubs.
+Full-repo code review produced a six-phase remediation plan: **agents/REVIEW-FIXES.md** (R1 correctness bugs → R2 Yahoo error handling → R3 shared resolver refactor → R4 structured Suggestion fields → R5 caching/perf → R6 dead code + hygiene). **All six phases are implemented, reviewed, and committed** (per-component notes in each `agents/<NNN>/done.md`; the exe was rebuilt after every code-changing phase). One residual owner decision: SPEC §1.1 reads "13 rounds + conditional 14th IR slot" while the implementation standardizes on `DRAFT_ROUNDS = 14` (unified in R1b) — reconciliation is the owner's call (see 003_league done.md).
 
 ## Open items (SPEC §1.1)
 
+- **Rounds: 13 vs 14** — SPEC §1.1 says "13 rounds + conditional 14th IR slot"; the code uses `DRAFT_ROUNDS = 14`. Owner to confirm which is authoritative and reconcile the SPEC.
 - Matchup-level 4-4 tie-break rule — user to confirm with commissioner; 004_engine must be configurable (default: Yahoo).
 - Trade deadline date + transaction cutoff time — read from Yahoo league settings at M1 sync, manual-entry fallback.

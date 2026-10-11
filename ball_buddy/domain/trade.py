@@ -26,7 +26,8 @@ unresolved name, or a give not actually on the named roster, raises one
 Note: ``their_delta_p == -my_delta_p`` exactly (the ``1 - p``
 construction), so a trade can never make both sides better or worse in
 P(win) — the ``fairness_flag`` (my side's cost) is the only trade-quality
-signal this score gives.
+signal this score gives. (Review R6: the mirrored-delta caveat is
+intentional — kept as documented, no code change.)
 """
 
 from __future__ import annotations

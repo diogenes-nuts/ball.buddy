@@ -51,3 +51,7 @@ G/F/G-F/UTIL label map, replace/alias/keep/add/orphan/blank-stats cases).
 ## 2026-10-11 — R3 — R3: naming._suggest dropped its redundant pool_norm_all param (internal-only; callers never passed it); sweeps shared R3 status notes for 004/005/006
 
 `naming._suggest` (naming.py:137-139) lost its `pool_norm_all` keyword-only parameter — it was always byte-identical to `pool_norm` at both call sites (naming.py:98, :131); the internal-only signature is simpler. No behavior change; domain tests green.
+
+## 2026-10-11 — R5b — R5b: naming.bridge precomputes the pool's (norm, base, suffix, last, displays) tuples once per call — containment loop + _suggest stop re-splitting every pool name for every roster name (matching semantics unchanged; _suggest now internal pool_pre-taking)
+
+`naming.bridge` (naming.py:87-93) now precomputes a `(norm, base, suffix, last, displays)` tuple per normalized pool name ONCE per call (for-loop with a local `base, suffix = split_suffix(...)` hoist — reviewer's cosmetic suggestion applied). The Step-3 containment loop (naming.py:122) and `_suggest` (naming.py:144-171, signature now takes the `pool_pre` list — internal-only, both call sites updated) read the precomputed values instead of re-splitting. Reviewer-verified semantics byte-equivalent to HEAD: empty-base rows stay in pool_pre but `last_name("")` = "" filters identically in _suggest; containment keeps its `if not pool_base: continue`. No matching-logic change; tests/domain 169 green unchanged.

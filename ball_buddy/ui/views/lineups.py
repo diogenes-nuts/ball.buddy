@@ -333,13 +333,13 @@ class LineupView(QWidget):
             if self._rows_by_name.get(name) is not None
         ]
         starter_proj = engine.project_roster(starter_rows, team)
+        # Per-starter pts by NAME (a starter missing from the pool drops out
+        # of starter_rows — a positional players[i] would misalign the rest).
+        proj_by_name = {p.name: p for p in starter_proj.players}
         self.starters_table.setRowCount(len(result.starters))
         for i, (slot, name) in enumerate(result.starters):
-            pts = (
-                starter_proj.players[i].values["pts"]
-                if i < len(starter_proj.players)
-                else 0.0
-            )
+            player = proj_by_name.get(name)
+            pts = player.values["pts"] if player is not None else 0.0
             for col, text in enumerate((slot, name, f"{pts:.1f}")):
                 item = QTableWidgetItem(text)
                 if col == 2:  # Pts is a number

@@ -132,6 +132,7 @@ class MatchupView(QWidget):
         self.service = service
         self.snapshot: dict | None = None
         self.last_result: engine.MatchupResult | None = None
+        self._roster_players: tuple[tuple, tuple] = ((), ())
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -391,7 +392,7 @@ class MatchupView(QWidget):
         self._render_tables(result)
 
     def _render_tables(self, result: engine.MatchupResult) -> None:
-        players_a, players_b = getattr(self, "_roster_players", ((), ()))
+        players_a, players_b = self._roster_players
         outcomes = dict(zip(engine.CATS, result.cat_outcomes))
         self.cat_table.setRowCount(len(engine.CATS))
         for i, cat in enumerate(engine.CATS):

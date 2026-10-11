@@ -12,4 +12,4 @@ Hashtag rank when present, None for Yahoo-appended rows).
 
 ## Plan: Review remediation (2026-10-14) — see agents/REVIEW-FIXES.md
 
-Phases R1..R6; this component participates in: R1 (done — see done.md), R3 (done — see done.md), R5 (bridging precompute). No active phase until implementation starts.
+Phases R1..R6; this component participates in: R1 (done — see done.md), R3 (done — see done.md), R5 (done — bridge precompute, see done.md). No active phase.

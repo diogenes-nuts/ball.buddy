@@ -238,7 +238,7 @@ def validate_rows(rows: list[dict[str, str]]) -> list[str]:
         label = rec.get("name") or f"rank {rec.get('rank', '?')}"
         if not rec.get("name"):
             warns.append(f"rank {rec.get('rank', '?')}: missing name; skipped downstream use")
-        if rec.get("rank") in seen_ranks:
+        if rec.get("rank") and rec.get("rank") in seen_ranks:
             warns.append(f"{label}: duplicate rank {rec.get('rank')}")
         seen_ranks.add(rec.get("rank", ""))
 

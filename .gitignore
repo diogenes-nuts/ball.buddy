@@ -11,3 +11,5 @@ data_tmp_check/
 node_modules/
 __pycache__/
 .pytest_cache/
+
+.pi/reports/
