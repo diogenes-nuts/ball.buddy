@@ -95,7 +95,7 @@ def bridge(
                 report.matched[roster_name] = alias
                 used_pool.update(pool_norm[alias_norm])
                 continue
-            report.unmatched.append((roster_name, _suggest(pool_norm, roster_name, pool_norm)))
+            report.unmatched.append((roster_name, _suggest(pool_norm, roster_name)))
             continue
 
         norm = normalize(roster_name)
@@ -128,7 +128,7 @@ def bridge(
         elif len(candidates) > 1:
             report.ambiguous[roster_name] = sorted(set(candidates))
         else:
-            report.unmatched.append((roster_name, _suggest(pool_norm, roster_name, pool_norm)))
+            report.unmatched.append((roster_name, _suggest(pool_norm, roster_name)))
 
     report.pool_unused = len(pool_names) - len(used_pool)
     return report
@@ -137,7 +137,6 @@ def bridge(
 def _suggest(
     pool_norm: dict[str, list[str]],
     roster_name: str,
-    pool_norm_all: dict[str, list[str]],
 ) -> list[str]:
     """Top-3 suggestions by last-name equality (fallback: last-token prefix)."""
     want = last_name(split_suffix(normalize(roster_name))[0])
@@ -153,7 +152,7 @@ def _suggest(
         return exact[:3]
     prefix = sorted(
         display
-        for pool_norm_name, displays in pool_norm_all.items()
+        for pool_norm_name, displays in pool_norm.items()
         if last_name(split_suffix(pool_norm_name)[0]).startswith(want[:5]) and len(want) >= 5
         for display in displays
     )

@@ -77,7 +77,7 @@ from ball_buddy.domain.scorer import CAT_Z_COLUMN
 from ball_buddy.services.sync import SyncService
 from ball_buddy.ui.theme import FONT_MONO, TEXT_BASE, THEMES, stat_color
 from ball_buddy.ui.views import _offline
-from ball_buddy.ui.views.matchup import CAT_LABELS
+from ball_buddy.ui.views._common import CAT_LABELS
 
 # Reason-bit parsers for the rail's mkt/fit summary (the scorer's reason
 # string is the single source of the split numbers — "mkt 3/50 → 0.94"

@@ -10,10 +10,9 @@ rows), the 4 sitters with their rationale lines, and the 9-category outlook
 vs the opponent (gaps + W/L/T + cat-win margin, optional seeded P(win)).
 
 Roster source per team: resolved keeper entries + entered picks, looked up
-in ``players.csv`` — the ``MatchupView._load_team_data`` name-resolution
-core is a bound method (not importable), so the small core is deliberately
-duplicated here as :func:`_team_roster_rows` (waivers precedent, no
-matchup.py refactor in this slice). Unresolved names surface as banner
+in ``players.csv`` via the shared :func:`ball_buddy.ui.views._roster`
+resolver (one implementation for all four views). Unresolved names surface
+as banner
 warnings, never a crash; an ``optimize`` ``ValueError`` (unfillable slot)
 surfaces in the banner with the tables cleared. The 4 sitters include the
 conditional IR slot — the IR choice stays manual (display only, no Yahoo
@@ -43,15 +42,10 @@ from PySide6.QtWidgets import (
 )
 
 from ball_buddy.domain import engine
-from ball_buddy.domain import keepers as keepers_mod
 from ball_buddy.domain import lineup as lineup_mod
-from ball_buddy.domain import picks as picks_mod
-from ball_buddy.domain.keepers import KeeperEntry
 from ball_buddy.domain.lineup import LineupResult
-from ball_buddy.domain.players import PlayerPool
 from ball_buddy.services.sync import SyncResult, SyncService
-from ball_buddy.ui.views import _offline, _status
-from ball_buddy.ui.views.matchup import CAT_LABELS
+from ball_buddy.ui.views import _common, _offline, _roster, _status
 
 _BASE_NOTE = (
     "No lineups yet — toggle plays, then Optimize (deterministic gap mode; "
@@ -66,52 +60,6 @@ _IR_NOTE = (
     "(display only)."
 )
 _WEEK_NOTE = "Week is accepted but unused pre-draft (season projections compare)."
-
-
-def _fmt_gap(cat: str, value: float) -> str:
-    if cat in engine.COUNT_CATS:
-        return f"{value:+.0f}"
-    return f"{value:+.8f}"
-
-
-def _team_roster_rows(
-    service: SyncService, team_name: str
-) -> tuple[list[dict[str, str]], list[str]]:
-    """Pool rows (keepers + picks for ``team_name``, resolved, deduped, order
-    kept) plus names that did not resolve into the pool (warnings, never a
-    crash). Deliberate ~15-line duplicate of the ``MatchupView._load_team_data``
-    name-resolution core — that one is a bound method, not importable.
-    """
-    pool = PlayerPool.load(service.pool_path)
-    aliases = service.load_aliases()
-    keepers = keepers_mod.load(service.data_dir / keepers_mod.KEEPERS_FILE)
-    picks = picks_mod.load(service.data_dir / picks_mod.PICKS_FILE)
-    if not team_name:
-        return [], []
-    names = [entry.player for entry in keepers if entry.team == team_name] + [
-        pick.player for pick in picks if pick.team == team_name
-    ]
-    resolved = keepers_mod.resolve(
-        [KeeperEntry(team=team_name, player=name, cost_round=1) for name in names],
-        pool.names(),
-        aliases,
-    )
-    rows: list[dict[str, str]] = []
-    seen: set[str] = set()
-    missing: list[str] = []
-    for name in names:
-        pool_name = resolved.get(name)
-        if pool_name is None:
-            if name not in missing:
-                missing.append(name)
-            continue
-        if pool_name in seen:
-            continue
-        seen.add(pool_name)
-        row = pool.get(pool_name)
-        if row is not None:
-            rows.append(row)
-    return rows, missing
 
 
 def _clear_table(table: QTableWidget) -> None:
@@ -304,7 +252,7 @@ class LineupView(QWidget):
         self._boxes = []
         if self.snapshot is None:
             return
-        rows, _ = _team_roster_rows(self.service, self.team_combo.currentText())
+        rows, _ = _roster.team_roster_rows(self.service, self.team_combo.currentText())
         for row in rows:
             box = QCheckBox(row.get("name", ""))
             box.setChecked(True)  # default: everyone plays (noted by optimize)
@@ -328,8 +276,8 @@ class LineupView(QWidget):
             _status.set_status(self.banner, "info", "Pick a team and an opponent first.")
             return
 
-        my_rows, my_missing = _team_roster_rows(self.service, team)
-        opp_rows, opp_missing = _team_roster_rows(self.service, opp)
+        my_rows, my_missing = _roster.team_roster_rows(self.service, team)
+        opp_rows, opp_missing = _roster.team_roster_rows(self.service, opp)
         notes: list[str] = []
         if my_missing:
             notes.append(f"{team}: not in pool: {', '.join(my_missing)} (skipped).")
@@ -416,7 +364,7 @@ class LineupView(QWidget):
         outcomes = dict(zip(engine.CATS, result.cat_outcomes))
         self.cat_table.setRowCount(len(engine.CATS))
         for i, cat in enumerate(engine.CATS):
-            texts = (CAT_LABELS[cat], _fmt_gap(cat, result.gaps[cat]),
+            texts = (_common.CAT_LABELS[cat], _common._fmt_gap(cat, result.gaps[cat]),
                      outcomes[cat][0])
             for col, text in enumerate(texts):
                 item = QTableWidgetItem(text)

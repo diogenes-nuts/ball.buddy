@@ -676,7 +676,6 @@ class LeagueView(QWidget):
         super().closeEvent(event)
 
 
-__all__ = ["LeagueView", "SyncWorker"]
 class _SignInExchangeWorker(QObject):
     """Exchange the captured code off the UI thread (one network call)."""
 
@@ -908,3 +907,6 @@ class SignInDialog(QDialog):
         if self._server is not None:
             self._server.stop()
         super().closeEvent(event)
+
+
+__all__ = ["LeagueView", "SyncWorker"]

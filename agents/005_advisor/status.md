@@ -36,4 +36,5 @@ Advisor logic over 004_engine (SPEC §6). **M4 + M5 + M6 complete** (waiver, lin
 
 - (none — M6 complete; next roadmap item is M7 packaging).
 
+- R3: roster name/row resolution in the three advisor views now delegates to the shared `ui/views/_roster.py` (`team_roster_rows`/`team_roster_names`); `_fmt_gap` moved to `ui/views/_common.py` (single definition; the views import it).
 Plans: dev.md. History: git log; done.md.

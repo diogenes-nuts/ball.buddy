@@ -35,31 +35,16 @@ from PySide6.QtWidgets import (
 )
 
 from ball_buddy.domain import engine
-from ball_buddy.domain import keepers as keepers_mod
-from ball_buddy.domain import picks as picks_mod
 from ball_buddy.domain.engine import PlayerProjection
-from ball_buddy.domain.keepers import KeeperEntry
-from ball_buddy.domain.players import PlayerPool
 from ball_buddy.services.sync import SyncResult, SyncService
 from ball_buddy.ui import theme
-from ball_buddy.ui.views import _offline
-
-CAT_LABELS: dict[str, str] = {
-    "fg_pct": "FG%", "ft_pct": "FT%", "three": "3P", "pts": "Pts",
-    "reb": "Reb", "ast": "Ast", "stl": "Stl", "blk": "Blk", "to": "To",
-}
+from ball_buddy.ui.views import _common, _offline, _roster
 
 # _GapBars geometry constants.
 _ROW_H = 24
 _GROUP_GAP = 10
 _LABEL_W = 64
 _RIGHT_PAD = 24
-
-
-def _fmt_gap(cat: str, value: float) -> str:
-    if cat in engine.COUNT_CATS:
-        return f"{value:+.0f}"
-    return f"{value:+.8f}"
 
 
 def _fmt_value(cat: str, value: float) -> str:
@@ -117,7 +102,7 @@ class _GapBars(QWidget):
                 painter.drawText(
                     0, y, _LABEL_W - 8, _ROW_H,
                     int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter),
-                    CAT_LABELS[cat],
+                    _common.CAT_LABELS[cat],
                 )
                 signed = (
                     self.gaps.get(cat, 0.0)
@@ -305,41 +290,9 @@ class MatchupView(QWidget):
     # -- roster building ------------------------------------------------------
 
     def _load_team_data(self, team_name: str) -> tuple[list[dict[str, str]], list[str]]:
-        """Pool rows (kept players resolved + entered picks, deduped, order
-        kept), plus the kept/picked names that did not resolve into the pool
-        (surfaced as warnings, never a crash). One ``keepers.resolve`` pass.
-        """
-        pool = PlayerPool.load(self.service.pool_path)
-        aliases = self.service.load_aliases()
-        keepers = keepers_mod.load(self.service.data_dir / keepers_mod.KEEPERS_FILE)
-        picks = picks_mod.load(self.service.data_dir / picks_mod.PICKS_FILE)
-        if not team_name:
-            return [], []
-        names = [entry.player for entry in keepers if entry.team == team_name] + [
-            pick.player for pick in picks if pick.team == team_name
-        ]
-        # keepers.resolve only needs the player names; cost_round/team are unused
-        resolved = keepers_mod.resolve(
-            [KeeperEntry(team=team_name, player=name, cost_round=1) for name in names],
-            pool.names(),
-            aliases,
-        )
-        rows: list[dict[str, str]] = []
-        seen: set[str] = set()
-        missing: list[str] = []
-        for name in names:
-            pool_name = resolved.get(name)
-            if pool_name is None:
-                if name not in missing:
-                    missing.append(name)
-                continue
-            if pool_name in seen:
-                continue
-            seen.add(pool_name)
-            row = pool.get(pool_name)
-            if row is not None:
-                rows.append(row)
-        return rows, missing
+        """Delegates to :func:`ball_buddy.ui.views._roster.team_roster_rows`.
+        Kept as a method so call sites stay bound to the view."""
+        return _roster.team_roster_rows(self.service, team_name)
 
     def _standings(self) -> dict[str, tuple[int, int]]:
         """``{team name: (wins, losses)}`` from the snapshot standings
@@ -446,7 +399,7 @@ class MatchupView(QWidget):
             cell_wl = "A" if a_out == "win" else ("tie" if a_out == "tie" else "B")
             a_val, b_val = self._side_values(cat, players_a, players_b)
             for col, text in enumerate(
-                (CAT_LABELS[cat], _fmt_gap(cat, result.gaps[cat]),
+                (_common.CAT_LABELS[cat], _common._fmt_gap(cat, result.gaps[cat]),
                  _fmt_value(cat, a_val), _fmt_value(cat, b_val), cell_wl)
             ):
                 self.cat_table.setItem(i, col, QTableWidgetItem(text))
@@ -508,4 +461,4 @@ class MatchupView(QWidget):
             self.team_b_combo.setCurrentIndex(ib)
 
 
-__all__ = ["MatchupView", "_GapBars", "CAT_LABELS"]
+__all__ = ["MatchupView", "_GapBars"]

@@ -2,6 +2,16 @@
 
 Salvaged from autodraft ``config.py`` + ``league.py`` (merged; code kept
 verbatim, only the cross-import was folded into one module). Stdlib only.
+
+The second half of this file is the snake-draft order generation and the
+keeper/forfeit model: the snake order includes every team in every round
+(odd rounds follow ``start_order``, even rounds reverse it). A keeper with a
+round cost does not shorten the snake — it only marks that team's pick in
+the cost round as ``forfeited`` (see agents/SPEC.md sections 7 and 10).
+
+``DRAFT_ROUNDS`` (14 — the 14th round has no keeper cost, so it is
+intentionally NOT equal to ``keepers.MAX_COST_ROUND``) is defined in this
+module as the single source of truth; ``domain/picks.py`` re-exports it.
 """
 
 from __future__ import annotations
@@ -309,15 +319,6 @@ def validate_league(raw: object) -> LeagueConfig:
         keepers=keepers,
         warnings=tuple(warnings),
     )
-
-
-"""Snake-draft order generation and the keeper/forfeit model.
-
-The snake order includes every team in every round (odd rounds follow
-``start_order``, even rounds reverse it). A keeper with a round cost does not
-shorten the snake — it only marks that team's pick in the cost round as
-``forfeited`` (see agents/SPEC.md sections 7 and 10).
-"""
 
 
 # SPEC §1.1: 14-slot roster, 14 draft rounds. The last round (14) has no

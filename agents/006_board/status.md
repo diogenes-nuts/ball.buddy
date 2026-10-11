@@ -40,4 +40,5 @@ Unchanged from before the rewrite: SetupDialog owns team list/order/keepers/my-t
 - The recs rail's mkt/fit column parses the scorer's reason bits (`mkt N/M → x.xx`, `fit ±x.xx z`); a reason format change requires updating the two regexes in `board.py` (`_MKT_RE` / `_FIT_RE`).
 - Full `pytest tests` offscreen run dies ~72% in with a hard kill (no traceback, exit 127); every file/directory passes individually — pre-existing flakiness of the offscreen harness on long combined runs, not a test failure.
 
+- R3: `board.py` imports `CAT_LABELS` from `ui/views/_common.py` (was `matchup.py`); pool-bridging for the roster panel now runs through the shared `ui/views/_roster.py`.
 Plans: dev.md. History: git log; done.md.

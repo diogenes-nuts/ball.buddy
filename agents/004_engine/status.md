@@ -17,4 +17,5 @@ Projection + win-prob engine (SPEC §4). **M3 complete** (M3.1 engine, M3.2 view
 
 - Commissioner confirmation of the 4-4 rule still pending (SPEC §1.1). (`matchup_tie_break` is wired to `data/settings.json` in M3.2 via the Matchup view.)
 
+- R3: `matchup.py` no longer owns `CAT_LABELS` (now `ui/views/_common.py`, imported by board + all views) and `_load_team_data` is a one-line delegate to `ui/views/_roster.py`.
 Plans: dev.md. History: git log; done.md.

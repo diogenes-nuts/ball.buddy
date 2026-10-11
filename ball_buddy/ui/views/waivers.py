@@ -8,10 +8,8 @@ it runs synchronously like "Run Monte-Carlo" in the matchup view).
 Baseline roster source chain (per picked team): ``keepers.json`` +
 ``draft_picks.json`` entries for that team -> ``keepers_mod.resolve(...)``
 against ``pool.names()`` with ``aliases.json`` -> resolved pool (display)
-names, which ``rank_candidates`` resolves to pool rows internally.
-``MatchupView._load_team_data`` is a bound method (not importable), so the
-small name-resolution core is deliberately duplicated here as
-:func:`_team_roster_names` (no matchup.py refactor in this slice).
+names, which ``rank_candidates`` resolves to pool rows internally — via the
+shared :func:`ball_buddy.ui.views._roster.team_roster_names` resolver.
 Unresolved roster/opponent names surface as banner warnings, never a crash;
 unresolved *candidate* names raise ``ValueError`` from ``rank_candidates``
 and are shown in the banner with the results table cleared.
@@ -38,15 +36,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ball_buddy.domain import keepers as keepers_mod
-from ball_buddy.domain import picks as picks_mod
 from ball_buddy.domain.engine import PCT_CATS
-from ball_buddy.domain.keepers import KeeperEntry
 from ball_buddy.domain.players import PlayerPool
 from ball_buddy.domain.waiver import WaiverCandidate, rank_candidates
 from ball_buddy.services.sync import SyncResult, SyncService
-from ball_buddy.ui.views import _offline, _status
-from ball_buddy.ui.views.matchup import CAT_LABELS
+from ball_buddy.ui.views import _common, _offline, _roster, _status
 
 _RESULT_NOTE = (
     "No lineups yet — projecting full rosters from keepers + drafted picks."
@@ -58,40 +52,6 @@ _COLUMNS = (
 )
 
 
-def _team_roster_names(
-    service: SyncService, team_name: str
-) -> tuple[list[str], list[str]]:
-    """Resolved pool names (keepers + picks for ``team_name``, deduped, order
-    kept) plus names that did not resolve into the pool (warnings, never a
-    crash). Deliberate ~15-line duplicate of the ``MatchupView._load_team_data``
-    name-resolution core — that one is a bound method, not importable.
-    """
-    pool = PlayerPool.load(service.pool_path)
-    aliases = service.load_aliases()
-    keepers = keepers_mod.load(service.data_dir / keepers_mod.KEEPERS_FILE)
-    picks = picks_mod.load(service.data_dir / picks_mod.PICKS_FILE)
-    if not team_name:
-        return [], []
-    names = [entry.player for entry in keepers if entry.team == team_name] + [
-        pick.player for pick in picks if pick.team == team_name
-    ]
-    resolved = keepers_mod.resolve(
-        [KeeperEntry(team=team_name, player=name, cost_round=1) for name in names],
-        pool.names(),
-        aliases,
-    )
-    out: list[str] = []
-    missing: list[str] = []
-    for name in names:
-        pool_name = resolved.get(name)
-        if pool_name is None:
-            if name not in missing:
-                missing.append(name)
-        elif pool_name not in out:
-            out.append(pool_name)
-    return out, missing
-
-
 def _top2_cat_delta(cat_delta: dict[str, float]) -> str:
     """Top 2 direction-adjusted cat deltas (``to`` negated), e.g.
     ``"PTS +5 / TO +1"`` — positive always reads as "improves"."""
@@ -101,8 +61,8 @@ def _top2_cat_delta(cat_delta: dict[str, float]) -> str:
     )
     scored.sort(key=lambda item: item[1], reverse=True)
     parts = [
-        f"{CAT_LABELS[cat]} {value:+.4f}" if cat in PCT_CATS
-        else f"{CAT_LABELS[cat]} {value:+.0f}"
+        f"{_common.CAT_LABELS[cat]} {value:+.4f}" if cat in PCT_CATS
+        else f"{_common.CAT_LABELS[cat]} {value:+.0f}"
         for cat, value in scored[:2]
     ]
     return " / ".join(parts)
@@ -306,8 +266,8 @@ class WaiverView(QWidget):
             _status.set_status(self.banner, "info", "Add at least one candidate.")
             return
 
-        roster_names, missing = _team_roster_names(self.service, team)
-        opp_names, opp_missing = _team_roster_names(self.service, opp)
+        roster_names, missing = _roster.team_roster_names(self.service, team)
+        opp_names, opp_missing = _roster.team_roster_names(self.service, opp)
         notes: list[str] = []
         if missing:
             notes.append(f"{team}: not in pool: {', '.join(missing)} (skipped).")

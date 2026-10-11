@@ -2,9 +2,8 @@
 per-side before/after category-gap tables, fairness verdict banner.
 
 Pick my team / opponent, add players to each side of the deal from the
-resolved roster combos (keepers + picks looked up in ``players.csv`` — the
-the ``waivers`` module-level :func:`_team_roster_names` name-resolution core
-is duplicated here verbatim, no import), then "Analyze" runs
+resolved roster combos (keepers + picks looked up in ``players.csv`` via the
+shared :func:`ball_buddy.ui.views._roster` resolver), then "Analyze" runs
 ``domain/trade.analyze_trade`` synchronously (default 200 trials, seeded —
 seconds-scale, no worker thread, same call pattern as waivers/lineups).
 Renders each side's 9-category gaps Before/After/Delta (deterministic
@@ -40,63 +39,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ball_buddy.domain import engine
-from ball_buddy.domain import keepers as keepers_mod
-from ball_buddy.domain import picks as picks_mod
 from ball_buddy.domain import trade as trade_mod
 from ball_buddy.domain.engine import CATS
-from ball_buddy.domain.keepers import KeeperEntry
 from ball_buddy.domain.players import PlayerPool
 from ball_buddy.domain.trade import Trade, TradeResult
 from ball_buddy.services.sync import SyncResult, SyncService
-from ball_buddy.ui.views import _offline, _status
-from ball_buddy.ui.views.matchup import CAT_LABELS
+from ball_buddy.ui.views import _common, _offline, _roster, _status
 
 _BASE_NOTE = "No trade entered — pick players above, then Analyze."
 _PROJ_NOTE = (
     "Trade scoring uses season projections of full rosters (no week — "
     "analyze_trade is week-agnostic)."
 )
-
-
-def _fmt_gap(cat: str, value: float) -> str:
-    if cat in engine.COUNT_CATS:
-        return f"{value:+.0f}"
-    return f"{value:+.8f}"
-
-
-def _team_roster_names(
-    service: SyncService, team_name: str
-) -> tuple[list[str], list[str]]:
-    """Resolved pool names (keepers + picks for ``team_name``, deduped, order
-    kept) plus names that did not resolve into the pool (warnings, never a
-    crash). Deliberate ~15-line duplicate of the ``MatchupView._load_team_data``
-    name-resolution core — that one is a bound method, not importable.
-    """
-    pool = PlayerPool.load(service.pool_path)
-    aliases = service.load_aliases()
-    keepers = keepers_mod.load(service.data_dir / keepers_mod.KEEPERS_FILE)
-    picks = picks_mod.load(service.data_dir / picks_mod.PICKS_FILE)
-    if not team_name:
-        return [], []
-    names = [entry.player for entry in keepers if entry.team == team_name] + [
-        pick.player for pick in picks if pick.team == team_name
-    ]
-    resolved = keepers_mod.resolve(
-        [KeeperEntry(team=team_name, player=name, cost_round=1) for name in names],
-        pool.names(),
-        aliases,
-    )
-    out: list[str] = []
-    missing: list[str] = []
-    for name in names:
-        pool_name = resolved.get(name)
-        if pool_name is None:
-            if name not in missing:
-                missing.append(name)
-        elif pool_name not in out:
-            out.append(pool_name)
-    return out, missing
 
 
 class TradeView(QWidget):
@@ -269,8 +223,10 @@ class TradeView(QWidget):
             my_names: list[str] = []
             opp_names: list[str] = []
         else:
-            my_names, _ = _team_roster_names(self.service, self.team_combo.currentText())
-            opp_names, _ = _team_roster_names(
+            my_names, _ = _roster.team_roster_names(
+                self.service, self.team_combo.currentText()
+            )
+            opp_names, _ = _roster.team_roster_names(
                 self.service, self.opp_combo.currentText()
             )
         self.my_give_combo.blockSignals(True)
@@ -362,8 +318,8 @@ class TradeView(QWidget):
             _status.set_status(self.banner, "info", "Pick a team and an opponent first.")
             return
 
-        my_names, my_missing = _team_roster_names(self.service, team)
-        opp_names, opp_missing = _team_roster_names(self.service, opp)
+        my_names, my_missing = _roster.team_roster_names(self.service, team)
+        opp_names, opp_missing = _roster.team_roster_names(self.service, opp)
         notes: list[str] = []
         if my_missing:
             notes.append(f"{team}: not in pool: {', '.join(my_missing)} (skipped).")
@@ -420,8 +376,8 @@ class TradeView(QWidget):
                 b = before[cat]
                 a = after[cat]
                 for col, text in enumerate(
-                    (CAT_LABELS[cat], _fmt_gap(cat, b), _fmt_gap(cat, a),
-                     _fmt_gap(cat, a - b))
+                    (_common.CAT_LABELS[cat], _common._fmt_gap(cat, b),
+                     _common._fmt_gap(cat, a), _common._fmt_gap(cat, a - b))
                 ):
                     item = QTableWidgetItem(text)
                     if col > 0:  # Before/After/Delta are numbers
