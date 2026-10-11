@@ -9,9 +9,9 @@ keeper/forfeit model: the snake order includes every team in every round
 round cost does not shorten the snake — it only marks that team's pick in
 the cost round as ``forfeited`` (see agents/SPEC.md sections 7 and 10).
 
-``DRAFT_ROUNDS`` (14 — the 14th round has no keeper cost, so it is
-intentionally NOT equal to ``keepers.MAX_COST_ROUND``) is defined in this
-module as the single source of truth; ``domain/picks.py`` re-exports it.
+``DRAFT_ROUNDS`` (13 — SPEC §1.1: the IR is a conditional 14th roster slot
+with no draft round, so the snake runs 13 rounds) is defined in this module
+as the single source of truth; ``domain/picks.py`` re-exports it.
 """
 
 from __future__ import annotations
@@ -321,10 +321,9 @@ def validate_league(raw: object) -> LeagueConfig:
     )
 
 
-# SPEC §1.1: 14-slot roster, 14 draft rounds. The last round (14) has no
-# keeper cost, so this is intentionally NOT equal to
-# ``keepers.MAX_COST_ROUND`` (13 — the keeper-cost cap).
-DRAFT_ROUNDS = 14
+# SPEC §1.1: 14-slot roster (10 active + 3 BN + 1 conditional IR) but only
+# 13 draft rounds — the IR slot is not involved in drafting.
+DRAFT_ROUNDS = 13
 
 
 @dataclass(frozen=True)

@@ -29,3 +29,7 @@ Full plan context: agents/REVIEW-FIXES.md (R1 item 1). Cross-exam note: the plan
 - Reviewer nits fixed post-review: test_excepthook finally-uninstalls the Qt message handler + restores excepthook (session leak); log_path moved inside try; reset returns real success.
 - Reviewer note accepted (cosmetic, not a bug): post-reset a re-triggered Qt font warning recreates data/ containing only app.log — every loader reads that as empty state; status text stays truthful.
 - Exe rebuilt (had to kill a running ball.buddy.exe locking qoffscreen.dll first). Verify: 234 passed / 1 skipped, ruff clean, offscreen smoke (all 6 nav pages, forced excepthook → app.log) OK.
+
+## 2026-10-11 — R6 — R6 (docs): scaffold R6 bookkeeping — repo hygiene (git rm 6 junk + gitignore .pi/reports/ + ROADMAP completion note) swept with the shared R6 commit; carries 004 R6 done.md section
+
+Repo hygiene (code in shared R6 commit 90866de): deleted 6 tracked junk files — `.p1.txt`, `.p2.txt`, `.pytest_out.txt`, `.r.txt`, `tests/full_run.txt`, and the unreferenced `Screenshot 2026-10-09 131142.png` (only referenced by the review plan + state notes, no doc) — and gitignored `.pi/reports/` (only; `.pi/state/` stays tracked). `agents/ROADMAP.md` review-remediation section flipped from "Open plan" to "Done (2026-10-14 → 2026-10-15)" and the SPEC §1.1 "Rounds: 13 vs 14" question surfaced in Open items as an owner decision.

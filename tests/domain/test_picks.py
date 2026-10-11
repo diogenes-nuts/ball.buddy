@@ -13,19 +13,20 @@ TWELVE = [f"T{i:02d}" for i in range(1, 13)]
 
 def test_twelve_team_snake_shape():
     snake = picks_mod.build_snake(TWELVE, [])
-    assert len(snake) == 168
+    assert len(snake) == 156
     # round 1 = start order, round 2 exactly reversed, round 3 = start order
     assert [p.team for p in snake[:12]] == TWELVE
     assert [p.team for p in snake[12:24]] == list(reversed(TWELVE))
     assert [p.team for p in snake[24:36]] == TWELVE
-    # overall is sequential 1..168
-    assert [p.overall for p in snake] == list(range(1, 169))
+    # overall is sequential 1..156
+    assert [p.overall for p in snake] == list(range(1, 157))
     # within-round slot numbers reset per round
     assert [p.order for p in snake[:12]] == list(range(1, 13))
     assert [p.order for p in snake[12:24]] == list(range(1, 13))
-    # 14 rounds per SPEC §1.1 (the league.DRAFT_ROUNDS constant)
-    assert picks_mod.DRAFT_ROUNDS == 14
-    assert {p.round for p in snake} == set(range(1, 15))
+    # 13 rounds per SPEC §1.1 (the league.DRAFT_ROUNDS constant; the IR
+    # roster slot has no draft round)
+    assert picks_mod.DRAFT_ROUNDS == 13
+    assert {p.round for p in snake} == set(range(1, 14))
     assert all(not p.forfeited for p in snake)
 
 
@@ -73,7 +74,7 @@ def test_current_pick_none_when_complete():
         for p in snake
         if not p.forfeited
     ]
-    assert len(picks) == 168 - 1
+    assert len(picks) == 156 - 1
     assert picks_mod.current_pick(snake, picks) is None
 
 

@@ -359,7 +359,7 @@ class DraftBoard(QWidget):
     """Autodraft-oriented draft helper: strip + players + relative +
     rosters on the left.
 
-    The snake order lives in ``self.snake`` (14 rounds x teams, even
+    The snake order lives in ``self.snake`` (13 rounds x teams, even
     rounds reversed — ``_order_of`` mirrors ``league.snake_order``);
     keeper forfeits are shown in the roster panel and consume overall
     pick numbers. Logging a pick (typed name via the partial-match

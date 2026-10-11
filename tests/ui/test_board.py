@@ -112,7 +112,7 @@ def test_layout_no_grid_widget(qapp, tmp_path):
 def test_strip_format(qapp, tmp_path):
     board = make_board(tmp_path, [KeeperEntry("Red", "Big Keeper", 1)])
     # Red forfeits R1 order 1 -> current is R1, overall 2/26, Blue
-    assert board.current_label.text() == "R1 \u00b7 pick 2/28 \u00b7 Blue"
+    assert board.current_label.text() == "R1 \u00b7 pick 2/26 \u00b7 Blue"
     assert board.search_popup.model() is board._search_filter
     assert board.commit_button.isEnabled()
 
@@ -163,7 +163,7 @@ def test_commit_writes_file_and_updates_panels(qapp, tmp_path):
     saved = picks_mod.load(board.picks_path)
     assert saved == [picks_mod.DraftPick(1, 2, "Blue", "Two Bumble")]
     # strip advanced: overall 3 is round 2, reversed order -> Blue first
-    assert board.current_label.text() == "R2 \u00b7 pick 3/28 \u00b7 Blue"
+    assert board.current_label.text() == "R2 \u00b7 pick 3/26 \u00b7 Blue"
     # players table drops the drafted player
     assert "Two Bumble" not in _players_names(board)
     # recs rail drops it too
@@ -249,7 +249,7 @@ def test_undo_drops_last_pick(qapp, tmp_path):
     board.undo_button.click()
     assert picks_mod.load(board.picks_path) == []
     assert "One Aardvark" in _players_names(board)
-    assert board.current_label.text() == "R1 \u00b7 pick 1/28 \u00b7 Red"
+    assert board.current_label.text() == "R1 \u00b7 pick 1/26 \u00b7 Red"
     board.undo_button.click()  # no-op on empty picks, no crash
 
 
@@ -484,7 +484,7 @@ def test_manual_teams_render_offline_board(qapp, tmp_path):
     assert not board.offline_banner.isHidden()
     assert "manual team list" in board.offline_banner.text()
     assert board.commit_button.isEnabled()
-    assert board.current_label.text() == "R1 \u00b7 pick 1/28 \u00b7 Alpha"
+    assert board.current_label.text() == "R1 \u00b7 pick 1/26 \u00b7 Alpha"
     assert not board.service.snapshot_path.exists()
 
 
@@ -513,7 +513,7 @@ def test_draft_view_embeds_board(qapp, tmp_path):
     save_fixture_snapshot(view.service)
     view.refresh()
     assert isinstance(view.board, DraftBoard)
-    assert len(view.board.snake) == 28  # league.DRAFT_ROUNDS * 2
+    assert len(view.board.snake) == 26  # league.DRAFT_ROUNDS * 2
     same_board = view.board
     view.refresh()
     assert view.board is same_board

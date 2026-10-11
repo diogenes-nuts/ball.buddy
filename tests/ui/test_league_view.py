@@ -133,12 +133,12 @@ def test_stale_banner_offline(qapp, tmp_path):
 
 def test_draft_rounds_constant_shared_with_domain():
     # R1 fix 4: the view renders its snake with the exact same constant the
-    # board's build_snake uses (14 rounds per SPEC §1.1) — one definition.
+    # board's build_snake uses (13 rounds per SPEC §1.1) — one definition.
     import ball_buddy.ui.views.league as league_view
     from ball_buddy.domain import picks as picks_mod
     from ball_buddy.domain.league import DRAFT_ROUNDS
 
-    assert DRAFT_ROUNDS == 14
+    assert DRAFT_ROUNDS == 13
     assert league_view.DRAFT_ROUNDS is DRAFT_ROUNDS
     assert picks_mod.DRAFT_ROUNDS is DRAFT_ROUNDS
 
@@ -151,8 +151,8 @@ def test_schedule_and_draft_tables(qapp, tmp_path):
     assert view.schedule_table.rowCount() == 2
     assert view.schedule_table.item(0, 0).text() == "1"
     assert view.schedule_table.item(1, 1).text() == "BYE"
-    # draft order from live draft_position (Red 1st, Blue 2nd), 14 rounds
-    assert view.draft_table.rowCount() == 28
+    # draft order from live draft_position (Red 1st, Blue 2nd), 13 rounds
+    assert view.draft_table.rowCount() == 26
     assert view.draft_table.item(0, 2).text() == "Red"
     assert view.draft_table.item(1, 2).text() == "Blue"
     assert view.draft_table.item(2, 2).text() == "Blue"  # round 2 snakes
@@ -320,8 +320,8 @@ def test_manual_mode_renders_teams_and_order(qapp, tmp_path):
     assert view.teams_table.rowCount() == 2
     assert view.teams_table.item(0, 0).text() == "Alpha"
     assert "manual team list" in view.status_banner.text().lower()
-    # order editable offline: 14-round snake, buttons live, no live order
-    assert view.draft_table.rowCount() == 14 * 2
+    # order editable offline: 13-round snake, buttons live, no live order
+    assert view.draft_table.rowCount() == 13 * 2
     assert view.save_order_button.isEnabled()
     assert view.schedule_empty.isHidden() is False
 

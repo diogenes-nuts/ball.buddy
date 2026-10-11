@@ -6,7 +6,7 @@ the single source of truth for forfeits. The snake itself is produced by
 ``league.snake_order`` over a minimal config (no slots/categories), exactly
 the way ``ui/views/league.py`` builds one for display.
 
-``league.DRAFT_ROUNDS`` (14) rounds per SPEC §1.1 — the same constant the
+``league.DRAFT_ROUNDS`` (13) rounds per SPEC §1.1 — the same constant the
 League view renders with, so the two surfaces number picks identically.
 """
 
@@ -21,7 +21,7 @@ from ball_buddy.io.state import StateError, load_json, save_json
 
 PICKS_VERSION = 1
 PICKS_FILE = "draft_picks.json"
-DRAFT_ROUNDS = league.DRAFT_ROUNDS  # re-export; 14-round snake (SPEC §1.1)
+DRAFT_ROUNDS = league.DRAFT_ROUNDS  # re-export; 13-round snake (SPEC §1.1)
 
 
 @dataclass(frozen=True)

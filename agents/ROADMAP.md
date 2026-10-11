@@ -26,10 +26,10 @@ Top-level plan for ball.buddy, ported from `agents/SPEC.md` §7 (the spec remain
 
 ## Done — review remediation (2026-10-14 → 2026-10-15)
 
-Full-repo code review produced a six-phase remediation plan: **agents/REVIEW-FIXES.md** (R1 correctness bugs → R2 Yahoo error handling → R3 shared resolver refactor → R4 structured Suggestion fields → R5 caching/perf → R6 dead code + hygiene). **All six phases are implemented, reviewed, and committed** (per-component notes in each `agents/<NNN>/done.md`; the exe was rebuilt after every code-changing phase). One residual owner decision: SPEC §1.1 reads "13 rounds + conditional 14th IR slot" while the implementation standardizes on `DRAFT_ROUNDS = 14` (unified in R1b) — reconciliation is the owner's call (see 003_league done.md).
+Full-repo code review produced a six-phase remediation plan: **agents/REVIEW-FIXES.md** (R1 correctness bugs → R2 Yahoo error handling → R3 shared resolver refactor → R4 structured Suggestion fields → R5 caching/perf → R6 dead code + hygiene). **All six phases are implemented, reviewed, and committed** (per-component notes in each `agents/<NNN>/done.md`; the exe was rebuilt after every code-changing phase). The SPEC §1.1 "13 vs 14 rounds" question was resolved by the owner (2026-10-15): the SPEC is authoritative — `DRAFT_ROUNDS = 13`, the IR is a conditional 14th roster slot with no draft round.
 
 ## Open items (SPEC §1.1)
 
-- **Rounds: 13 vs 14** — SPEC §1.1 says "13 rounds + conditional 14th IR slot"; the code uses `DRAFT_ROUNDS = 14`. Owner to confirm which is authoritative and reconcile the SPEC.
+- ~~**Rounds: 13 vs 14**~~ — **Resolved 2026-10-15 (owner):** SPEC §1.1 is authoritative — `DRAFT_ROUNDS = 13`; the IR is a conditional 14th roster slot, not involved in drafting. Code reconciled (13-round snake, 156 picks; `MAX_COST_ROUND = 13` unchanged).
 - Matchup-level 4-4 tie-break rule — user to confirm with commissioner; 004_engine must be configurable (default: Yahoo).
 - Trade deadline date + transaction cutoff time — read from Yahoo league settings at M1 sync, manual-entry fallback.
