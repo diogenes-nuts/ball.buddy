@@ -24,6 +24,10 @@ Top-level plan for ball.buddy, ported from `agents/SPEC.md` §7 (the spec remain
 - `005_advisor` — waiver, lineup, trade logic (consumes 004_engine).
 - `006_board` — draft-day board (first feature, M2).
 
+## Open plan — review remediation (2026-10-14)
+
+Full-repo code review produced a six-phase remediation plan: **agents/REVIEW-FIXES.md** (R1 correctness bugs → R2 Yahoo error handling → R3 shared resolver refactor → R4 structured Suggestion fields → R5 caching/perf → R6 dead code + hygiene). Runs before/alongside any new feature work; per-phase bookkeeping in the touched components' dev.md stubs.
+
 ## Open items (SPEC §1.1)
 
 - Matchup-level 4-4 tie-break rule — user to confirm with commissioner; 004_engine must be configurable (default: Yahoo).

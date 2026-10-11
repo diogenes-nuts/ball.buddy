@@ -66,3 +66,7 @@ right rail); roster panel shows ONE team at a time (default mine, dropdown to sw
 UI flag when not my team); use autodraft's scoring formula (0.45·market + 0.55·fit
 + tag adjustments, hole 1.25 / ok 1.0 / covered 0.75 multipliers, REACH/VALUE tags,
 value-gap flag) — replaces the P2 formula.
+
+## Plan: Review remediation (2026-10-14) — see agents/REVIEW-FIXES.md
+
+This component participates in: R1 (_parse_z), R3 (_roster.py/_common.py adoption), R4 (structured Suggestion fields + scorer O(n^2) fix — owns it), R5 (render-once threading + names-model guard). No active phase until implementation starts.
