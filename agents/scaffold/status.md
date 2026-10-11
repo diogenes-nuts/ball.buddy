@@ -19,6 +19,10 @@ Repo scaffold for ball.buddy: Python package `ball_buddy` with a PySide6 desktop
 - `ball.buddy.spec` + PyInstaller onedir build → `dist/ball.buddy/ball.buddy.exe` (rebuild commands in AGENTS.md; `build/`, `dist/` gitignored).
 - `info.md` — AutoDraft domain brief (salvage context source for 001_data / 006_board).
 
+## R6 (2026-10-11)
+
+- Repo hygiene: deleted 6 tracked junk files (`.p1.txt`, `.p2.txt`, `.pytest_out.txt`, `.r.txt`, `tests/full_run.txt`, and the Oct-09 screenshot) and gitignored `.pi/reports/` (only — `.pi/state/` stays tracked). `agents/ROADMAP.md` now records the six-phase review remediation as complete (R1→R6, exe rebuilt after each code phase) and surfaces the SPEC §1.1 13-vs-14-rounds question as an open owner decision.
+
 ## Not yet
 
 - Box-shadow fidelity (flat-fill approximations instead), full font stack (bundling Quicksand/IBM Plex Mono) — deferred nits from M0 review (out of M7 scope by decision). Dark theme was deferred but added at the user's request (see theme.py line).

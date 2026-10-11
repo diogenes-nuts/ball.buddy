@@ -35,4 +35,8 @@ Advisor logic over 004_engine (SPEC §6). **M4 + M5 + M6 complete** (waiver, lin
 ## R3 (2026-10-11)
 
 - Roster name/row resolution in the three advisor views now delegates to the shared `ui/views/_roster.py` (`team_roster_rows`/`team_roster_names`); `_fmt_gap` moved to `ui/views/_common.py` (single definition; the views import it).
+
+## R6 (2026-10-11)
+
+- Advisor-view dead code: the Trades give-grid teardown dropped the no-op `del layout` branch (a grid cell is widget XOR layout, so the `item.widget()` branch already handled it); the Lineups view now looks up each starter's Pts by NAME (`proj_by_name`) instead of positional `players[i]`, which would have misaligned the row when a starter is absent from the pool; `domain/trade.py` documents the mirrored-delta (`1 - p`) caveat as an intentional, no-code-change decision.
 Plans: dev.md. History: git log; done.md.

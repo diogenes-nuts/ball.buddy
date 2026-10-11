@@ -20,4 +20,8 @@ Projection + win-prob engine (SPEC §4). **M3 complete** (M3.1 engine, M3.2 view
 ## R3 (2026-10-11)
 
 - `matchup.py` no longer owns `CAT_LABELS` (now `ui/views/_common.py`, imported by board + all views) and `_load_team_data` is a one-line delegate to `ui/views/_roster.py`.
+
+## R6 (2026-10-11)
+
+- `matchup.py` initializes `self._roster_players = ((), ())` in `__init__` and `_render_tables` reads it directly (dropped the `getattr(self, …, ((), ()))` fallback that hid the init contract).
 Plans: dev.md. History: git log; done.md.
