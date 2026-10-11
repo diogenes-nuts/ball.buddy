@@ -6,9 +6,8 @@ the single source of truth for forfeits. The snake itself is produced by
 ``league.snake_order`` over a minimal config (no slots/categories), exactly
 the way ``ui/views/league.py`` builds one for display.
 
-13 rounds per SPEC §1.1 (``keepers.MAX_COST_ROUND``). Note:
-``ui/views/league.py::DRAFT_ROUNDS`` is 14 (roster-size comment) — a
-pre-existing discrepancy flagged for a later slice, not fixed here.
+``league.DRAFT_ROUNDS`` (14) rounds per SPEC §1.1 — the same constant the
+League view renders with, so the two surfaces number picks identically.
 """
 
 from __future__ import annotations
@@ -16,14 +15,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from ball_buddy.domain import keepers as keepers_mod
 from ball_buddy.domain import league
 from ball_buddy.domain.keepers import KeeperEntry
 from ball_buddy.io.state import StateError, load_json, save_json
 
 PICKS_VERSION = 1
 PICKS_FILE = "draft_picks.json"
-DRAFT_ROUNDS = keepers_mod.MAX_COST_ROUND  # SPEC §1.1: 13-round snake
+DRAFT_ROUNDS = league.DRAFT_ROUNDS  # re-export; 14-round snake (SPEC §1.1)
 
 
 @dataclass(frozen=True)

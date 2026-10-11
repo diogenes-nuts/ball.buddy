@@ -31,14 +31,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ball_buddy.domain.league import LeagueConfig, snake_order
+from ball_buddy.domain.league import DRAFT_ROUNDS, LeagueConfig, snake_order
 from ball_buddy.io.pool import inbox
 from ball_buddy.io.pool.inbox import InboxOutcome
 from ball_buddy.services.sync import SyncResult, SyncService
 from ball_buddy.ui.views import _offline
 from ball_buddy.ui.views.pool_import import PoolImportDialog
-
-DRAFT_ROUNDS = 14  # SPEC §1.1: 14-slot roster
 
 
 class SyncWorker(QObject):

@@ -306,14 +306,18 @@ class PlayerTableModel(QAbstractTableModel):
 
 
 def _parse_z(text: str) -> float | None:
-    """Parsed z-score; None when the source cell is blank (renders empty)."""
+    """Parsed z-score; None when the cell is blank OR unparseable.
+
+    An unparseable cell is unknown, not zero (matches ``_row_sort_key``'s
+    contract) — it renders empty and sorts last in both directions.
+    """
     stripped = str(text or "").strip()
     if not stripped:
         return None
     try:
         return float(stripped)
     except ValueError:
-        return 0.0
+        return None
 
 
 def _primary_pos(row: dict[str, str]) -> str:
@@ -362,7 +366,7 @@ class DraftBoard(QWidget):
     """Autodraft-oriented draft helper: strip + players + relative +
     rosters on the left.
 
-    The snake order lives in ``self.snake`` (13 rounds x teams, even
+    The snake order lives in ``self.snake`` (14 rounds x teams, even
     rounds reversed — ``_order_of`` mirrors ``league.snake_order``);
     keeper forfeits are shown in the roster panel and consume overall
     pick numbers. Logging a pick (typed name via the partial-match

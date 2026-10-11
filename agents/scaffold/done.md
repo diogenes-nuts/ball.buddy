@@ -1,5 +1,15 @@
 # scaffold — done
 
+## 2026-10-11 — R1a — R1a: crash dialog fix (None parent, re-raise kept) + test; bye-filter leak fix in League schedule pane (003/006 files, committed here for the shared phase); exe rebuilt
+
+From agents/REVIEW-FIXES.md R1 (items 1–3; 2–3 are 003/006 files, phase id shared, committed under scaffold):
+
+- `ball_buddy/main.py` — excepthook's `QMessageBox.critical("ball.buddy", text)` passed a str as the parent widget → TypeError swallowed by `except Exception: pass`, dialog never showed. Now `QMessageBox.critical(None, text)`; re-raise via the captured default hook untouched. Note: the call is 2-arg (parent, text) — no title arg.
+- Tests: `tests/test_excepthook.py` +2 (critical called with `(None, str)`; stand-in default hook still receives the exc = re-raise path).
+- Exe rebuilt (dist\ball.buddy\ball.buddy.exe, 5.74 MB); per-file pytest green, ruff clean.
+
+Full plan context: agents/REVIEW-FIXES.md (R1 item 1). Cross-exam note: the plan's original "(None|QApplication, str, str)" signature description was wrong (no title arg); the fix itself was correct.
+
 ## 2026-10-03 — M7.1 — Exe packaging foundations (slice 1/2 of M7): frozen-aware resolve_data_dir (exe writes data/ next to itself, not into _internal; dev path unchanged), shared app-icon painter (cream/basketball, tactile-cream) wired to both the window icon and a build-time PNG-in-ICO generator (scripts/make_icon.py, zero new deps) with assets/icon.ico committed and added to ball.buddy.spec + AGENTS.md build command. 3 new tests (frozen/dev branches, shell data_dir+icon). 228 tests green, ruff clean, exe rebuilt with icon.
 
 - `ball_buddy/pathing.py` — `resolve_data_dir()`: `sys.frozen` → `Path(sys.executable).resolve().parent / "data"`; dev → repo-root `data/` (identical to old inline `parents[2]` in shell.py). shell.py now consumes it; no other independent data-dir computation in prod code (verified by grep — all consumers get `data_dir` from SyncService).

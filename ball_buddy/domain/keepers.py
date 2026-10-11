@@ -5,7 +5,8 @@ local pool is computed on demand via the naming bridge (``domain/naming.py``)
 and never persisted. Rules mirror SPEC §1.1 and ``league.py::_validate_keepers``:
 
 - max 2 keepers per team (opted-out keepers still count toward the cap);
-- cost round 1..13 (13-round snake per SPEC §1.1);
+- cost round 1..13 (keeper-cost cap; the snake itself runs 14 rounds —
+  ``league.DRAFT_ROUNDS``);
 - at most one active (non-opted-out) keeper per (team, cost round) — an
   opted-out keeper consumes no pick;
 - a player may not be kept by two teams (dedupe on the resolved pool name
@@ -21,7 +22,9 @@ from ball_buddy.domain.naming import bridge, normalize
 from ball_buddy.io.state import StateError, load_json, save_json
 
 KEEPERS_VERSION = 1
-MAX_COST_ROUND = 13  # SPEC §1.1: 13-round snake
+# Keeper-cost cap: costs are valid in 1..13 because round 14 (the last
+# pick of the 14-round snake, ``league.DRAFT_ROUNDS``) has no keeper cost.
+MAX_COST_ROUND = 13  # intentionally DRAFT_ROUNDS - 1, not DRAFT_ROUNDS
 MAX_KEEPERS_PER_TEAM = 2
 KEEPERS_FILE = "keepers.json"
 

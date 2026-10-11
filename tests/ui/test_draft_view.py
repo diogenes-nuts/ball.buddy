@@ -45,7 +45,7 @@ def test_view_embeds_board_and_setup_button(qapp, tmp_path):
     save_fixture_snapshot(view.service)
     view.refresh()
     assert isinstance(view.board, DraftBoard)
-    assert len(view.board.snake) == 13 * 2
+    assert len(view.board.snake) == 14 * 2  # league.DRAFT_ROUNDS
     assert view.board.setup_button.text() == "Setup…"
     # re-rendering with the same teams + keepers reuses the board
     same_board = view.board

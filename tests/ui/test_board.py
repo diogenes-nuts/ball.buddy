@@ -112,7 +112,7 @@ def test_layout_no_grid_widget(qapp, tmp_path):
 def test_strip_format(qapp, tmp_path):
     board = make_board(tmp_path, [KeeperEntry("Red", "Big Keeper", 1)])
     # Red forfeits R1 order 1 -> current is R1, overall 2/26, Blue
-    assert board.current_label.text() == "R1 \u00b7 pick 2/26 \u00b7 Blue"
+    assert board.current_label.text() == "R1 \u00b7 pick 2/28 \u00b7 Blue"
     assert board.search_popup.model() is board._search_filter
     assert board.commit_button.isEnabled()
 
@@ -163,7 +163,7 @@ def test_commit_writes_file_and_updates_panels(qapp, tmp_path):
     saved = picks_mod.load(board.picks_path)
     assert saved == [picks_mod.DraftPick(1, 2, "Blue", "Two Bumble")]
     # strip advanced: overall 3 is round 2, reversed order -> Blue first
-    assert board.current_label.text() == "R2 \u00b7 pick 3/26 \u00b7 Blue"
+    assert board.current_label.text() == "R2 \u00b7 pick 3/28 \u00b7 Blue"
     # players table drops the drafted player
     assert "Two Bumble" not in _players_names(board)
     # recs rail drops it too
@@ -249,7 +249,7 @@ def test_undo_drops_last_pick(qapp, tmp_path):
     board.undo_button.click()
     assert picks_mod.load(board.picks_path) == []
     assert "One Aardvark" in _players_names(board)
-    assert board.current_label.text() == "R1 \u00b7 pick 1/26 \u00b7 Red"
+    assert board.current_label.text() == "R1 \u00b7 pick 1/28 \u00b7 Red"
     board.undo_button.click()  # no-op on empty picks, no crash
 
 
@@ -484,7 +484,7 @@ def test_manual_teams_render_offline_board(qapp, tmp_path):
     assert not board.offline_banner.isHidden()
     assert "manual team list" in board.offline_banner.text()
     assert board.commit_button.isEnabled()
-    assert board.current_label.text() == "R1 \u00b7 pick 1/26 \u00b7 Alpha"
+    assert board.current_label.text() == "R1 \u00b7 pick 1/28 \u00b7 Alpha"
     assert not board.service.snapshot_path.exists()
 
 
@@ -513,7 +513,7 @@ def test_draft_view_embeds_board(qapp, tmp_path):
     save_fixture_snapshot(view.service)
     view.refresh()
     assert isinstance(view.board, DraftBoard)
-    assert len(view.board.snake) == 26
+    assert len(view.board.snake) == 28  # league.DRAFT_ROUNDS * 2
     same_board = view.board
     view.refresh()
     assert view.board is same_board
@@ -561,6 +561,29 @@ def test_pool_table_sortable_by_parsed_z(qapp, tmp_path):
     # POS filter resets the sort (pool order of the filtered subset).
     board.pos_combo.setCurrentText("PG")
     assert _players_names(board) == ["Alpha"]
+
+
+def test_pool_table_unparseable_z_renders_empty_and_sorts_last(qapp, tmp_path):
+    # R1 fix 6: an unparseable z cell is unknown, not zero — renders empty
+    # and sorts last in both directions (like a blank cell).
+    from ball_buddy.domain.scorer import CAT_Z_COLUMN
+
+    board = make_board(tmp_path, [])
+    write_pool(board.service, [
+        {"name": "Alpha", "pos": "PG", "rank": "1", "value": "10", "z_pts": "1.1"},
+        {"name": "Beta", "pos": "SG", "rank": "2", "value": "9", "z_pts": "abc"},
+        {"name": "Gamma", "pos": "SF", "rank": "3", "value": "8", "z_pts": "2.0"},
+    ])
+    board.refresh()
+    model = board._player_model
+    pts_col = 4 + tuple(CAT_Z_COLUMN).index("pts")
+    # unparseable renders "" — not "+0.0"
+    beta = _players_names(board).index("Beta")
+    assert model.data(model.index(beta, pts_col)) == ""
+    model.sort(pts_col, Qt.SortOrder.AscendingOrder)
+    assert _players_names(board) == ["Alpha", "Gamma", "Beta"]
+    model.sort(pts_col, Qt.SortOrder.DescendingOrder)
+    assert _players_names(board) == ["Gamma", "Alpha", "Beta"]
 
 
 def test_two_column_layout_right_rail_scroll(qapp, tmp_path):

@@ -17,6 +17,7 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"  # must be set before any PySide6 im
 import pytest
 from PySide6.QtWidgets import QApplication
 
+from ball_buddy.domain import picks as picks_mod
 from ball_buddy.domain.keepers import KeeperEntry
 from ball_buddy.domain.keepers import save as save_keepers
 from ball_buddy.io.pool.importer import FIELDNAMES, write_csv
@@ -165,6 +166,34 @@ def test_h2h_tie_break_uses_snapshot_standings(qapp, tmp_path: Path) -> None:
     assert "Push" in v.headline_label.text()  # cat-tie; yahoo_default has no catwins
     v.tie_break_combo.setCurrentText("h2h")
     assert "Blue wins" in v.headline_label.text()
+
+
+def test_marginal_table_identical_player_both_sides(qapp, tmp_path: Path) -> None:
+    """R1 fix 5: P1 kept by Red AND drafted by Blue is the identical
+    player (same name + stats) on both rosters — it must render one "A"
+    row and one "B" row, not two "A" rows (membership-by-value)."""
+    service = SyncService(tmp_path, client=YahooClient(FakeQuery(), "k", "s"))
+    doc = to_snapshot(load_results(), "1234")
+    save_snapshot(doc, service.snapshot_path)
+    write_csv([P1], service.pool_path)
+    save_keepers(
+        [KeeperEntry(team="Red", player="P1", cost_round=1)],
+        service.data_dir / "keepers.json",
+    )
+    picks_mod.save(
+        [picks_mod.DraftPick(2, 2, "Blue", "P1")],
+        service.data_dir / picks_mod.PICKS_FILE,
+    )
+    v = MatchupView(service)
+    v.pick_teams("Red", "Blue")
+    pairs = [
+        (v.marginal_table.item(i, 0).text(), v.marginal_table.item(i, 1).text())
+        for i in range(v.marginal_table.rowCount())
+    ]
+    assert ("P1", "A") in pairs
+    assert ("P1", "B") in pairs
+    assert pairs.count(("P1", "A")) == 1
+    assert pairs.count(("P1", "B")) == 1
 
 
 def test_empty_rosters_do_not_crash(qapp, tmp_path: Path) -> None:

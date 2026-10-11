@@ -131,6 +131,18 @@ def test_stale_banner_offline(qapp, tmp_path):
     assert "last synced" in text or "showing last snapshot" in text
 
 
+def test_draft_rounds_constant_shared_with_domain():
+    # R1 fix 4: the view renders its snake with the exact same constant the
+    # board's build_snake uses (14 rounds per SPEC §1.1) — one definition.
+    import ball_buddy.ui.views.league as league_view
+    from ball_buddy.domain import picks as picks_mod
+    from ball_buddy.domain.league import DRAFT_ROUNDS
+
+    assert DRAFT_ROUNDS == 14
+    assert league_view.DRAFT_ROUNDS is DRAFT_ROUNDS
+    assert picks_mod.DRAFT_ROUNDS is DRAFT_ROUNDS
+
+
 def test_schedule_and_draft_tables(qapp, tmp_path):
     view = make_view(tmp_path, qapp)
     save_snapshot(to_snapshot_from_fixture(), view.service.snapshot_path)

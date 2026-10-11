@@ -320,6 +320,12 @@ shorten the snake — it only marks that team's pick in the cost round as
 """
 
 
+# SPEC §1.1: 14-slot roster, 14 draft rounds. The last round (14) has no
+# keeper cost, so this is intentionally NOT equal to
+# ``keepers.MAX_COST_ROUND`` (13 — the keeper-cost cap).
+DRAFT_ROUNDS = 14
+
+
 @dataclass(frozen=True)
 class Pick:
     """One slot in the snake draft order."""

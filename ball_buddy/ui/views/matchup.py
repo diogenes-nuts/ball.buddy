@@ -453,12 +453,14 @@ class MatchupView(QWidget):
 
         # marginal table: signed count-cat contribution to the gap (A +, B -)
         rows: list[tuple[float, str, str, PlayerProjection, list[float]]] = []
-        for player in list(players_a) + list(players_b):
-            side = "A" if player in players_a else "B"
-            sign = 1.0 if side == "A" else -1.0
-            count_values = [sign * player.values[cat] for cat in engine.COUNT_CATS]
-            magnitude = max(abs(v) for v in count_values)
-            rows.append((magnitude, side, player.name, player, count_values))
+        # Carry the side explicitly: value-equality membership tests would
+        # mislabel an identical player (same name + stats) on BOTH rosters.
+        for side, players in (("A", players_a), ("B", players_b)):
+            for player in players:
+                sign = 1.0 if side == "A" else -1.0
+                count_values = [sign * player.values[cat] for cat in engine.COUNT_CATS]
+                magnitude = max(abs(v) for v in count_values)
+                rows.append((magnitude, side, player.name, player, count_values))
         rows.sort(key=lambda item: item[0], reverse=True)
         self.marginal_table.setRowCount(min(20, len(rows)))
         for i, (_, side, name, _, count_values) in enumerate(rows[:20]):
