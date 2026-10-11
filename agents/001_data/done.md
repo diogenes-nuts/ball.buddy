@@ -46,3 +46,8 @@ G/F/G-F/UTIL label map, replace/alias/keep/add/orphan/blank-stats cases).
 - Loud reporting: added/replaced/kept-orphan counts + orphans in the existing
   unmatched report. Test against a mock Yahoo doc (offline).
 - Impl: domain/reconcile.py (reconcile_pool pure + yahoo_players_from_snapshot builder); wired into io/pool/inbox.py scan_inbox + pool_import.py import_html (snapshot-backed Yahoo side, offline-safe no-op); report in league.py inbox banner; blank value renders '—' in board. FA pool out of scope until auth. Verify: 351 passed / 1 skipped, ruff clean; review PASS.
+
+
+## 2026-10-11 — R3 — R3: naming._suggest dropped its redundant pool_norm_all param (internal-only; callers never passed it); sweeps shared R3 status notes for 004/005/006
+
+`naming._suggest` (naming.py:137-139) lost its `pool_norm_all` keyword-only parameter — it was always byte-identical to `pool_norm` at both call sites (naming.py:98, :131); the internal-only signature is simpler. No behavior change; domain tests green.

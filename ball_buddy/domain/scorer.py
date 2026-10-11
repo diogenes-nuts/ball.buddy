@@ -18,7 +18,7 @@ Pure scoring math, no I/O, no Qt. Ports autodraft's
   this player to go before us: −``TAG_ADJUSTMENT``), VALUE
   (``adp > VALUE_FACTOR * overall`` — the market is behind us:
   +``TAG_ADJUSTMENT``), else "on board" (0).
-- **score** = ``MARKET_WEIGHT * market + FIT_WEIGHT * fit_norm + tag_adj``.
+- **score** = ``MARKET_WEIGHT * market + FIT_WEIGHT * fit_z + tag_adj``.
 - **value gap** (extra reason only, never the score): top-decile
   candidates (rank in the top ``VALUE_GAP_TOP_FRACTION`` of the pool)
   whose ADP slips more than ``VALUE_GAP_DEFAULT_ROUNDS`` full rounds
@@ -189,9 +189,8 @@ def _gap_names(candidates: list[_Row], team_count: int) -> frozenset[str]:
     ]
     if not decile:
         return frozenset()
-    floor_adp = max(
-        row.adp for row in decile if row.rank == max(r.rank for r in decile)
-    )
+    top_rank = max(r.rank for r in decile)
+    floor_adp = max(row.adp for row in decile if row.rank == top_rank)
     threshold = floor_adp + VALUE_GAP_DEFAULT_ROUNDS * team_count
     return frozenset(
         row.name
@@ -267,15 +266,23 @@ def score_pool(
             for cat in CATS
             if WEIGHTS[cat] > 0 and row.z[cat] * mults[cat] > 0
         )
+        # score/reason keep the legacy 0.0-for-unranked and 0.5-for-
+        # degenerate-range behavior; the structured Suggestion rail fields
+        # are None-aware instead (R4). fit_z carries the RAW weighted
+        # fit z that _fit_reason displays ("fit +X.XXz") — not the
+        # min-max-normalized fit_z above — so the rail cell renders
+        # byte-identically to the old reason-regex parsing.
         market = 0.0 if row.rank is None else (rank_max - row.rank) / rank_max
-        fit_norm = 0.5 if hi == lo else (fit - lo) / (hi - lo)
+        market_field = None if row.rank is None else market
+        fit_z = 0.5 if hi == lo else (fit - lo) / (hi - lo)
+        fit_z_field = None if hi == lo else fit
         tag = _reach_tag(row.adp, overall)
         tag_adj = (
             TAG_ADJUSTMENT
             if tag == "VALUE"
             else -TAG_ADJUSTMENT if tag == "REACH" else 0.0
         )
-        score = MARKET_WEIGHT * market + FIT_WEIGHT * fit_norm + tag_adj
+        score = MARKET_WEIGHT * market + FIT_WEIGHT * fit_z + tag_adj
         if row.rank is None:
             market_bit = "mkt unrated (market 0.00)"
         else:
@@ -305,6 +312,8 @@ def score_pool(
                     gap=row.name in gap_names,
                     score=score,
                     cats=helps,
+                    market=market_field,
+                    fit_z=fit_z_field,
                 ),
             )
         )

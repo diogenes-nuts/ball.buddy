@@ -33,3 +33,8 @@ From agents/REVIEW-FIXES.md R1 (item 5).
 - `ui/views/matchup.py:456-462` — marginal-table rows built via `for side, players in (("A", players_a), ("B", players_b))` instead of `side = "A" if player in players_a else "B"` (value-equality mislabeled an identical player on both rosters as "A").
 - Test: `test_matchup_view.py::test_marginal_table_identical_player_both_sides` — same pool row on both rosters → exactly one ("P1","A") and one ("P1","B") row.
 - Verify: test_matchup_view 10, ruff clean; exe rebuilt.
+
+
+## 2026-10-11 — R3 — R3: matchup.py no longer owns CAT_LABELS (now ui/views/_common.py) and _load_team_data is a one-line delegate to ui/views/_roster.py
+
+`_load_team_data` (matchup.py:292-295) is a one-line wrapper around `_roster.team_roster_rows` (new shared `ui/views/_roster.py`; see 005_advisor R3 for the shared module). `CAT_LABELS` moved out of matchup.py into `ui/views/_common.py` (single definition; matchup imports it). Pure refactor — matchup's table render, gap bars, and all 10 tests unchanged.

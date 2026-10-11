@@ -195,6 +195,32 @@ def test_blank_rank_sorts_last_market_zero():
     assert "mkt unrated (market 0.00)" in result[1].reason
 
 
+def test_value_gap_floor_over_duplicate_worst_rank_decile_members():
+    # R4: _gap_names hoists the worst-decile rank — with duplicate ranks at
+    # the cutoff the ADP floor must be the max over ALL worst-rank members
+    # (old and new implementations agree; this pins it on an asymmetric
+    # decile). 20 candidates, cutoff = 2: three rows share rank 2 (the
+    # worst decile rank), ADP 5/9/1; floor = 9 (not the first match, not
+    # a per-row recompute artifact). Threshold = 9 + 2*10 = 29, so the
+    # rank-1 row at ADP 30 flags and the rank-1 row at ADP 25 does not.
+    rows = [zrow(f"F{i}", rank=str(i + 4)) for i in range(17)]
+    rows.append(zrow("Low", rank="2", adp="1"))
+    rows.append(zrow("Mid", rank="2", adp="9"))
+    rows.append(zrow("First", rank="2", adp="5"))
+    rows.append(zrow("Sleepy", rank="1", adp="30"))
+    rows.append(zrow("Awake", rank="1", adp="25"))
+    result = score_pool(rows, [], overall=10, team_count=10, top_n=20)
+    by_name = {s.name: s for s in result}
+    assert by_name["Sleepy"].gap
+    assert "value gap" in by_name["Sleepy"].reason
+    assert not by_name["Awake"].gap
+    assert "value gap" not in by_name["Awake"].reason
+    # the worst-rank decile members themselves never flag (all at the floor
+    # or below it)
+    for name in ("Low", "Mid", "First"):
+        assert "value gap" not in by_name[name].reason
+
+
 def test_empty_pool_returns_empty():
     assert score_pool([], [], overall=1, team_count=10) == []
     assert score_pool([zrow("Only", rank="1")], [], overall=1, team_count=10, top_n=0) == []

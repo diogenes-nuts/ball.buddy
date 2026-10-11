@@ -68,7 +68,10 @@ class Suggestion:
     ``tag`` / ``gap`` / ``score`` are filled by the P6 path
     (``scorer.score_pool``) for the rail chips and badge; they default to
     empty/0.0 so the M2.3 fallback and direct ``recommend`` calls keep
-    working unchanged.
+    working unchanged. ``market`` / ``fit_z`` are ``None`` in the M2.3
+    fallback (the UI renders an em dash); ``fit_z`` carries the raw
+    weighted fit z the reason string displays (the normalized value is
+    internal to the scorer).
     """
 
     name: str
@@ -82,6 +85,10 @@ class Suggestion:
     # P6: category needs this player helps (positive fit contribution per
     # cat); empty in the M2.3 fallback, which the UI shows as an em dash.
     cats: tuple[str, ...] = ()
+    # R4: structured rail fields (scorer.score_pool path only; None in the
+    # M2.3 fallback, which the UI renders as an em dash — unchanged).
+    market: float | None = None
+    fit_z: float | None = None
 
 
 def _parse_rank(text: str) -> int | None:

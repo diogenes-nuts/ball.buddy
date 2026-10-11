@@ -54,3 +54,14 @@ of the loud single `ValueError`. (c) tests added: roster-miss raises,
 
 - Reviewer-caught defect (fixed same day): `_rebuild_give_grid`'s takeAt loop called `deleteLater()` on EVERY widget it removed — including the still-live give labels/Remove buttons that were then re-added; after the 2nd/3rd Add, once the event loop ran, those widgets were destroyed -> next Remove/Analyze raised `RuntimeError: wrapped C++ object has been deleted`. Fix: only deleteLater() widgets not in the live set (labels+remove of `_my_gives`/`_their_gives`).
 - Regression test: `test_process_events_after_add_keeps_live_gives` — 2 Adds + 1 Their-Add, then flushes deferred deletes the way the real event loop does (`processEvents()` + `sendPostedEvents(None, DeferredDelete)`; plain `processEvents()` does NOT flush them), then reads `give["label"].text()` and clicks Remove. Verified it fails on the pre-fix code (RuntimeError) and passes post-fix.
+
+
+## 2026-10-11 — R3 — R3: advisor views (waivers/trades/lineups) delegate roster resolution to shared ui/views/_roster.py; _fmt_gap consolidated into ui/views/_common.py; pure refactor, tests unchanged
+
+New `ball_buddy/ui/views/_roster.py` holds the four near-identical roster-resolution copies: `_resolve_pool_names` (pool-bridge + alias-resolved name set; first-occurrence dedupe; unresolvable names kept in first-seen order — same semantics all four copies shared) feeds two public helpers: `team_roster_rows(snap, data_dir, team)` → pool rows (skip resolved names with no pool row; was matchup/lineups behavior) and `team_roster_names(snap, data_dir, team)` → resolved names (was trades/waivers behavior). `waivers.py`/`trades.py`/`lineups.py` call the helper for their original semantics; `matchup.py._load_team_data` is now a one-line wrapper around `team_roster_rows` (matchup.py:292-295). No test files changed (`git diff --stat -- tests/` empty); new `tests/ui/test_roster.py` (4 tests: dedupe, missing-name order, rows-vs-names filter split, empty-roster snapshot).
+
+New `ball_buddy/ui/views/_common.py`: single `CAT_LABELS` (was matchup.py:105) + single `_fmt_gap` (was board.py:964); import sites updated to board.py:80, lineups.py:367, trades.py:379-380, waivers.py:64-65, matchup.py:105/402 (no aliases); matchup's `__all__` now ["MatchupView", "_GapBars"].
+
+Reviewer PASS: 4 roster copies had no behavioral differences beyond the rows-vs-names filter split (preserved). Note for R5: `team_roster_rows` loads the pool twice (pre-existing, cosmetic — R5 quad cache addresses it).
+
+Tests: test_roster 4, matchup 10, board 28, league 16, draft 5, lineup 5, trade 7, waiver 5, inbox 4, setup_dialog 13, sign_in 4, theme 5 — all pass; tests/domain 168; ruff clean; exe rebuilt (5.74MB, dist/data restored).

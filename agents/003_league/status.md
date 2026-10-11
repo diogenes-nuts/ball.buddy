@@ -10,5 +10,7 @@ Local league model over the Yahoo snapshot: teams, rosters, draft order, schedul
 
 League rules baked in per agents/SPEC.md §1.1: 12 teams, snake 14 rounds (R1b: `DRAFT_ROUNDS = 14` now lives in `domain/league.py`; SPEC §1.1 still reads "13 rounds + conditional 14th IR slot" — implementation follows the review plan's 14, SPEC reconciliation is an owner decision), 14-slot roster (10 active + 3 BN + 1 conditional IR), 2 keepers/team, FAAB $100 only add path, 3 adds/wk, top-4 playoffs.
 
-- R3: `domain/league.py` docstrings merged into one top-of-file doc (notes `DRAFT_ROUNDS` lives there, re-exported by picks); `ui/views/league.py` `__all__` moved to file bottom.
+## R3 (2026-10-11)
+
+- `domain/league.py` docstrings merged into one top-of-file doc (notes `DRAFT_ROUNDS` lives there, re-exported by picks); `ui/views/league.py` `__all__` moved to file bottom.
 Plans: dev.md (none active). History: git log.

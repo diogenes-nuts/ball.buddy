@@ -69,4 +69,4 @@ value-gap flag) — replaces the P2 formula.
 
 ## Plan: Review remediation (2026-10-14) — see agents/REVIEW-FIXES.md
 
-Participates in: R1 (done — R1a keepers dedupe, R1b _parse_z + picks re-export, see done.md), R3 (_roster.py/_common.py adoption), R4 (structured Suggestion fields + scorer O(n^2) fix — owns it), R5 (render-once threading + names-model guard).
+Participates in: R1 (done — R1a keepers dedupe, R1b _parse_z + picks re-export, see done.md), R3 (done — _roster.py/_common.py adoption, see done.md), R4 (structured Suggestion fields + scorer O(n^2) fix — owns it), R5 (render-once threading + names-model guard).

@@ -18,3 +18,8 @@ From agents/REVIEW-FIXES.md R2 (item 5's UI surface — the warnings channel nee
 - `ui/views/league.py apply_result` — the `result.ok` branch now appends `SyncResult.extra.get("warnings") or []` (e.g. "Token not persisted: no refresh_token") after "Synced just now." via the existing `_set_banner(..., "banner-info")` — theme tokens only, safe on old results without the key.
 - Test: `tests/ui/test_league_view.py::test_ok_banner_surfaces_sync_warnings` (builds `SyncResult(ok=True)` directly — `load_last` is the offline path and returns ok=False).
 - Verify: test_league_view 16, ruff clean. This commit also swept the R1b doc bookkeeping (003/004/006 dev+done, scaffold done).
+
+
+## 2026-10-11 — R3 — R3: domain/league.py docstrings merged into one top-of-file doc (DRAFT_ROUNDS=14 stays there, re-exported by picks); views/league.py __all__ moved to file bottom
+
+`domain/league.py`'s per-class docstrings merged into a single top-of-file docstring (lines 5-14) that notes `DRAFT_ROUNDS = 14` lives here and is re-exported by picks.py:24 (re-export intact); the constant itself unmoved (league.py:327). `ui/views/league.py`'s `__all__` moved from line 679 to the file bottom (line 910); content identical (["LeagueView", "SyncWorker"]). Docs-only; league's 16 view tests green.

@@ -244,3 +244,8 @@ From agents/REVIEW-FIXES.md R1 (items 4 + 6; item 4 committed under 003/004 too,
 - `ui/views/board.py` — `_parse_z` `except ValueError: return None` (was 0.0), matching `_row_sort_key`'s unparseable=unknown contract; garbled z cells render empty and sort last (display sites already rendered None as "").
 - Tests: `test_board.py::test_pool_table_unparseable_z_renders_empty_and_sorts_last` (asc + desc); snake expectations updated to 2×14 (28 picks, "x/28" labels); test_draft_view snake 14*2.
 - Verify: test_board 28, test_draft_view 5, tests/domain 168, ruff clean; exe rebuilt.
+
+
+## 2026-10-11 — R3 — R3: board.py imports CAT_LABELS from ui/views/_common.py (was matchup.py); roster-panel pool-bridging now runs through the shared ui/views/_roster.py
+
+Board imports `CAT_LABELS` from `ui/views/_common.py` (board.py:80; was from matchup.py) and its roster-panel pool bridging delegates to the shared `ui/views/_roster.py` helpers (see 005_advisor R3 for the module). No behavioral change; board's 28 tests green.

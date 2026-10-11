@@ -25,7 +25,6 @@ percentile band is uncolored.
 
 from __future__ import annotations
 
-import re
 from statistics import median
 
 from PySide6.QtCore import (
@@ -78,12 +77,6 @@ from ball_buddy.services.sync import SyncService
 from ball_buddy.ui.theme import FONT_MONO, TEXT_BASE, THEMES, stat_color
 from ball_buddy.ui.views import _offline
 from ball_buddy.ui.views._common import CAT_LABELS
-
-# Reason-bit parsers for the rail's mkt/fit summary (the scorer's reason
-# string is the single source of the split numbers — "mkt 3/50 → 0.94"
-# and "fit +0.42z").
-_MKT_RE = re.compile(r"mkt (\d+)/(\d+) \u2192 ([\d.]+)")
-_FIT_RE = re.compile(r"fit ([+\-][\d.]+)z")
 
 
 class PlayerTableModel(QAbstractTableModel):
@@ -975,12 +968,15 @@ class DraftBoard(QWidget):
 
     @staticmethod
     def _mkfit(suggestion: Suggestion) -> str:
-        """'mkt X% / fit Y' parsed from the scorer's reason bits."""
-        mkt = _MKT_RE.search(suggestion.reason)
-        fit = _FIT_RE.search(suggestion.reason)
-        if not (mkt and fit):
+        """'mkt X% / fit Y' from the scorer's structured fields (R4).
+
+        ``market`` is the 0-1 rank value; ``fit_z`` is the raw weighted
+        fit (see ``scorer.score_pool``) — NOT a 0-1 normalization. The
+        M2.3 fallback leaves both None → em dash (unchanged).
+        """
+        if suggestion.market is None or suggestion.fit_z is None:
             return "—"
-        return f"mkt {float(mkt.group(3)) * 100:.0f}% / fit {fit.group(1)}z"
+        return f"mkt {suggestion.market * 100:.0f}% / fit {suggestion.fit_z:+.2f}z"
 
     def _render_relative(self, report=None) -> None:
         """Per-category BUILD/COAST/PUNT tags for my team vs the league (P3).
