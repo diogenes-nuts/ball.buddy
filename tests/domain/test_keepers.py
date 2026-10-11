@@ -97,6 +97,11 @@ def test_cross_team_duplicate_player():
     assert any("kept by both" in err for err in errors)
 
 
+def test_same_team_same_player_twice_blocked():
+    errors = validate([e("Red", "Jokic", 1), e("Red", "Jokic", 2)], TEAMS)
+    assert any("'Red' keeps 'Jokic' twice" in err for err in errors)
+
+
 def test_alias_equal_names_duplicate_when_resolved():
     # "Jokic" vs "Nikola Jokic": raw names differ but both bridge to pool
     # "Jokic" (containment) -> duplicate under the resolved dedupe key.

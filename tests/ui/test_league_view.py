@@ -146,6 +146,33 @@ def test_schedule_and_draft_tables(qapp, tmp_path):
     assert view.draft_table.item(2, 2).text() == "Blue"  # round 2 snakes
 
 
+def test_schedule_shows_only_own_bye(qapp, tmp_path):
+    # Blue's bye must not leak into the (first team's) schedule pane.
+    doc = to_snapshot_from_fixture()
+    doc["schedule"].append(
+        {"week": 3, "team_a": "200", "team_b": "", "bye": True, "status": "BYE"}
+    )
+    view = make_view(tmp_path, qapp)
+    save_snapshot(doc, view.service.snapshot_path)
+    view.apply_result(view.service.load_last())
+    # Red's pane: week 1 vs Blue, week 2 Red bye — not week 3 Blue bye
+    assert view.schedule_table.rowCount() == 2
+    weeks = [view.schedule_table.item(i, 0).text() for i in range(2)]
+    assert weeks == ["1", "2"]
+    assert view.schedule_table.item(1, 1).text() == "BYE"
+
+    # Blue's perspective does include its own bye
+    doc["teams"].reverse()  # swap: Blue first
+    view2 = make_view(tmp_path, qapp)
+    save_snapshot(doc, view2.service.snapshot_path)
+    view2.apply_result(view2.service.load_last())
+    rows = [(view2.schedule_table.item(i, 0).text(),
+             view2.schedule_table.item(i, 1).text())
+            for i in range(view2.schedule_table.rowCount())]
+    assert len(rows) == 2  # week 1 game + week 3 bye (week 2 Red bye excluded)
+    assert ("3", "BYE") in rows  # own bye
+
+
 def test_settings_dialog_saves_credentials(qapp, tmp_path):
     from ball_buddy.ui.views.league import SettingsDialog
 

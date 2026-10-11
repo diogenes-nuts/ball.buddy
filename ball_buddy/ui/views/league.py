@@ -526,6 +526,14 @@ class LeagueView(QWidget):
         # Schedule (from the first team's perspective when possible)
         schedule = self.snapshot.get("schedule", [])
         first_team = teams[0]["team_id"] if teams else ""
+        # Opponent column assumes team_a<team_b in the snapshot
+        # (io/yahoo/snapshot.py sorts pairs), so team_b is the opponent
+        # whenever first_team == team_a.
+        def _visible(entry) -> bool:
+            if entry.get("bye"):
+                return entry.get("team_a") == first_team
+            return first_team in (entry.get("team_a"), entry.get("team_b"))
+
         rows = [
             (
                 str(entry["week"]),
@@ -538,8 +546,7 @@ class LeagueView(QWidget):
                 entry.get("status") or "",
             )
             for entry in schedule
-            if first_team in (entry.get("team_a"), entry.get("team_b"))
-            or entry.get("bye")
+            if _visible(entry)
         ]
         self.schedule_table.setRowCount(len(rows))
         for i, row in enumerate(rows):

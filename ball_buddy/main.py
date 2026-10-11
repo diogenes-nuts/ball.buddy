@@ -47,7 +47,7 @@ def _install_error_hooks() -> None:
         try:
             location = log_path if log_path else "the app log"
             QMessageBox.critical(
-                "ball.buddy",
+                None,
                 f"{exc_type.__name__}: {exc_value}\n"
                 f"Full details in {location}\nSend that file to the developer.",
             )

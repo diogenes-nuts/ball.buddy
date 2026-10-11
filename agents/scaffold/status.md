@@ -5,7 +5,7 @@ Repo scaffold for ball.buddy: Python package `ball_buddy` with a PySide6 desktop
 ## Files
 
 - `pyproject.toml` — pins: PySide6 6.11.2, pytest 9.1.1, ruff 0.16.10, pyinstaller 6.22.3 (newest Py-3.14-resolvable; see AGENTS.md).
-- `ball_buddy/main.py` — entry point (`python -m ball_buddy.main`); friend-facing error UX (M7.2): global excepthook + Qt message handler append to `<data_dir>/app.log` and point the user at that file.
+- `ball_buddy/main.py` — entry point (`python -m ball_buddy.main`); friend-facing error UX (M7.2): global excepthook + Qt message handler append to `<data_dir>/app.log` and point the user at that file; the excepthook additionally shows a QMessageBox (parentless, R1a — a str-as-parent previously raised TypeError and the dialog never showed) before re-raising via the default hook.
 - `README.md` — friend-facing first-run guide (M7.2): run the exe, data/ location, Settings → sign-in → sync → pool import, reset + crash-log pointers.
 - `ball_buddy/ui/shell.py` — `MainWindow`: left nav sidebar (League, Matchup, Waivers, Lineups, Trades, Draft) + QStackedWidget; Draft view checked by default. Spec sidebar shell: surface fill + 2px right edge, app name (display face) above `v{VERSION}` (mono, secondary) in a divider-separated footer + a "Dark mode" checkbox (persisted as `settings["dark_mode"]`, live re-applies the stylesheet, then calls the Draft view's `set_theme` so the players table's precomputed stat brushes recolor with it; `main.py` applies the persisted theme before first show). Window icon from the shared app-mark painter; data dir via `pathing.resolve_data_dir()`.
 - `ball_buddy/pathing.py` — `resolve_data_dir()`: repo-root `data/` in dev, exe-adjacent `data/` when frozen (PyInstaller onedir).

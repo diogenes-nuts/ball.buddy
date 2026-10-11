@@ -9,7 +9,7 @@ the Roster panel no longer stretches to fill leftover height.
 
 ## Files
 
-- `ball_buddy/domain/keepers.py` — keeper model: team, player (pool-bridged via `naming`), cost round (1–13), `opted_out`. Opt-out semantics per SPEC §1.1: player back to pool eligibility, cost-round pick back to team. Validation: max 2 active keepers/team, cost round 1–13, no duplicate player.
+- `ball_buddy/domain/keepers.py` — keeper model: team, player (pool-bridged via `naming`), cost round (1–13), `opted_out`. Opt-out semantics per SPEC §1.1: player back to pool eligibility, cost-round pick back to team. Validation: max 2 active keepers/team, cost round 1–13, no duplicate (player, team) — a repeat by the same team is an error ("{team!r} keeps {player!r} twice", R1a); the same player on two different teams still errors as before.
 - `ball_buddy/domain/picks.py` — pick model: round, slot (snake order), team, player; snake build (`build_snake`, even rounds reversed), `start_order_for` (live order → `manual_draft_order` fallback), `current_pick` (first unentered open pick; keeper forfeits consume overall numbers).
 - `data/keepers.json`, `data/draft_picks.json` (gitignored) — atomic persistence via `io/state.py`.
 - `ball_buddy/ui/views/setup_dialog.py` — Setup dialog (P1): teams & draft-order table, keepers table (opt-out, resolved/UNMATCHED status), Save/Cancel. Writes `settings["manual_teams"]` / `["manual_draft_order"]` / `["my_team"]` + keepers.json — the stores the board reads.

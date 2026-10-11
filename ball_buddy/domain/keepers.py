@@ -68,7 +68,8 @@ def validate(
     team_set = set(teams)
     errors: list[str] = []
     per_team: dict[str, int] = {}
-    dedupe: dict[str, str] = {}  # player key -> first team that kept it
+    dedupe: set[tuple[str, str]] = set()  # (player key, team) pairs kept so far
+    first_team_by_key: dict[str, str] = {}  # player key -> first team that kept it
     team_rounds: dict[str, set[int]] = {}
     for entry in entries:
         if entry.team not in team_set:
@@ -89,13 +90,15 @@ def validate(
                 )
             rounds.add(entry.cost_round)
         key = resolved.get(entry.player) or normalize(entry.player)
-        first_team = dedupe.get(key)
-        if first_team is not None and first_team != entry.team:
+        if (key, entry.team) in dedupe:
+            errors.append(f"{entry.team!r} keeps {entry.player!r} twice")
+        elif (first_team := first_team_by_key.get(key)) is not None:
             errors.append(
                 f"player {entry.player!r} is kept by both {first_team!r} and {entry.team!r}"
             )
         else:
-            dedupe.setdefault(key, entry.team)
+            first_team_by_key[key] = entry.team
+        dedupe.add((key, entry.team))
     for team, count in per_team.items():
         if count > MAX_KEEPERS_PER_TEAM:
             errors.append(
