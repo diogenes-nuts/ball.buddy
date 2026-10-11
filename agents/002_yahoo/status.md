@@ -23,4 +23,8 @@ Yahoo adapter: the only module that talks to the Yahoo API. Real wrapper is **`y
 
 `SyncService.effective_snapshot()` returns the last Yahoo snapshot when one exists, else a synthetic doc from `settings["manual_teams"]` (via `snapshot.manual_snapshot`; never written to snapshot.json, so a real sync always wins; `load_last()` stays empty, so no fake stale-sync banner). `SettingsDialog` has a "Team list (offline)" one-name-per-line field (`settings["manual_teams"]`). Every team-reading view (League, Draft/keeper entry, Draft board, Matchup, Lineups, Waivers, Trades) renders from `effective_snapshot` and shows a shared "Offline - manual team list" banner (`ball_buddy/ui/views/_offline.py`), so the manual origin is never mistaken for synced data. The League up/down start-order editor works offline (each move persists immediately; fixed a pre-existing bug where `_render_tables` recomputed from settings and dropped the in-memory swap). Pre-draft engine rosters resolve from keepers + entered picks as designed. Tests: snapshot/service unit tests + board/draft/league/matchup view tests.
 
+## R5a (2026-10-11)
+
+`SyncService.load_last_cached()` memoizes the parsed last-sync result (snapshot + bridge report) keyed on the file mtimes of snapshot.json/players.csv/aliases.json; `effective_snapshot()` and the five view init call-sites use it, so app startup pays one pool load + one bridge instead of six. Post-user-action re-reads (import/undo/sign-in dialog close) stay on the uncached `load_last()`; reset/save-sign-in/save-aliases/run invalidate explicitly.
+
 Plans: dev.md (none active). History: git log; done.md.

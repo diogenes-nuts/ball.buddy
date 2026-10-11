@@ -84,6 +84,13 @@ def bridge(
     pool_norm: dict[str, list[str]] = {}
     for pool_name in pool_names:
         pool_norm.setdefault(normalize(pool_name), []).append(pool_name)
+    # Precompute the per-pool (norm, base, suffix, last, displays) tuples
+    # once (R5.4) — the containment loop and _suggest used to re-split every
+    # pool name for every roster name. Matching logic is unchanged.
+    pool_pre: list[tuple[str, str, str, str, list[str]]] = []
+    for norm_name, displays in pool_norm.items():
+        base, suffix = split_suffix(norm_name)
+        pool_pre.append((norm_name, base, suffix, last_name(base), displays))
     used_pool: set[str] = set()
 
     report = MatchReport()
@@ -95,7 +102,7 @@ def bridge(
                 report.matched[roster_name] = alias
                 used_pool.update(pool_norm[alias_norm])
                 continue
-            report.unmatched.append((roster_name, _suggest(pool_norm, roster_name)))
+            report.unmatched.append((roster_name, _suggest(pool_pre, roster_name)))
             continue
 
         norm = normalize(roster_name)
@@ -111,8 +118,7 @@ def bridge(
         # Step 3: containment, first name optional.
         base, suffix = split_suffix(norm)
         candidates: list[str] = []
-        for pool_norm_name, pool_display in pool_norm.items():
-            pool_base, pool_suffix = split_suffix(pool_norm_name)
+        for _pool_norm_name, pool_base, pool_suffix, _pool_last, pool_display in pool_pre:
             if not pool_base:
                 continue
             first_last_match = base == pool_base
@@ -128,32 +134,36 @@ def bridge(
         elif len(candidates) > 1:
             report.ambiguous[roster_name] = sorted(set(candidates))
         else:
-            report.unmatched.append((roster_name, _suggest(pool_norm, roster_name)))
+            report.unmatched.append((roster_name, _suggest(pool_pre, roster_name)))
 
     report.pool_unused = len(pool_names) - len(used_pool)
     return report
 
 
 def _suggest(
-    pool_norm: dict[str, list[str]],
+    pool_pre: list[tuple[str, str, str, str, list[str]]],
     roster_name: str,
 ) -> list[str]:
-    """Top-3 suggestions by last-name equality (fallback: last-token prefix)."""
+    """Top-3 suggestions by last-name equality (fallback: last-token prefix).
+
+    ``pool_pre`` is the precomputed (norm, base, suffix, last, displays) list
+    built once per :func:`bridge` call (R5.4).
+    """
     want = last_name(split_suffix(normalize(roster_name))[0])
     if not want:
         return []
     exact = sorted(
         display
-        for pool_norm_name, displays in pool_norm.items()
-        if last_name(split_suffix(pool_norm_name)[0]) == want
+        for _norm, _base, _suffix, last, displays in pool_pre
+        if last == want
         for display in displays
     )
     if exact:
         return exact[:3]
     prefix = sorted(
         display
-        for pool_norm_name, displays in pool_norm.items()
-        if last_name(split_suffix(pool_norm_name)[0]).startswith(want[:5]) and len(want) >= 5
+        for _norm, _base, _suffix, last, displays in pool_pre
+        if last.startswith(want[:5]) and len(want) >= 5
         for display in displays
     )
     return prefix[:3]

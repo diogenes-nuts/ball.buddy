@@ -388,6 +388,7 @@ class DraftBoard(QWidget):
         self._loaded_picks: list[picks_mod.DraftPick] = []
         self._pick_error = ""
         self._report = None
+        self._last_excluded: set[str] | None = None  # names-model rebuild guard
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -709,6 +710,9 @@ class DraftBoard(QWidget):
         The effective snapshot is the last Yahoo snapshot when one exists,
         else the manual team list from Settings (offline draft-day mode).
         """
+        # The pool may have been re-imported: force the names-model rebuild
+        # in the next render even if the excluded set is unchanged.
+        self._last_excluded = None
         snapshot = self.service.effective_snapshot()
         if snapshot is None:
             self._pool = PlayerPool.load(self.service.pool_path)  # keep pool current
@@ -779,17 +783,24 @@ class DraftBoard(QWidget):
         )
         self._report = report
         excluded = self._excluded_names(report)
+        # Compute the team projections once per render and thread them into
+        # the rail/relative panels (R5.3) — they were recomputed 3x before.
+        projections = self._team_projections(report)
         self._player_model.reset_pool(
             self._pool.rows, excluded, self._theme_name()
         )
         self._fit_player_columns()
-        # Rebuild the search dropdown's source rows (excluded-aware);
-        # re-apply the current query so the popup stays in sync.
-        names = [n for n in self._pool.names() if n not in excluded]
-        self._names_model.setRowCount(len(names))
-        for i, name in enumerate(names):
-            self._names_model.setItem(i, 0, QStandardItem(name))
-        self._search_filter.set_query(self.name_edit.text())
+        if excluded != self._last_excluded:
+            # Rebuild the search dropdown's source rows (excluded-aware);
+            # re-apply the current query so the popup stays in sync.
+            # Skipped when the excluded set is unchanged since the last
+            # render (pick/undo always change it; re-renders don't).
+            names = [n for n in self._pool.names() if n not in excluded]
+            self._names_model.setRowCount(len(names))
+            for i, name in enumerate(names):
+                self._names_model.setItem(i, 0, QStandardItem(name))
+            self._search_filter.set_query(self.name_edit.text())
+            self._last_excluded = excluded
         # POS filter options: distinct primary positions in the pool.
         # Signals stay live: restoring the kept text (or resetting to "All")
         # re-applies the model filter, so it can never desync from the combo.
@@ -818,8 +829,8 @@ class DraftBoard(QWidget):
         self.roster_combo.blockSignals(False)
         self._render_strip()
         self._render_roster(report)
-        self._render_relative(report)
-        self._render_recs(report)
+        self._render_relative(report, projections)
+        self._render_recs(report, projections)
         self._sync_panel_widths()
 
     def _render_strip(self) -> None:
@@ -885,7 +896,9 @@ class DraftBoard(QWidget):
         row_h = grid.verticalHeader().defaultSectionSize() or 22
         grid.setMinimumHeight(header_h + grid.rowCount() * row_h + 4)
 
-    def _render_recs(self, report) -> None:
+    def _render_recs(
+        self, report, projections: dict[str, list[dict[str, str]]] | None = None
+    ) -> None:
         """Recommendations rail: P6 scorer ordering with tag chips, a
         mkt/fit summary parsed from the scorer's reason bits, a value-gap
         badge, the list of need cats each player helps (em dash when
@@ -907,7 +920,7 @@ class DraftBoard(QWidget):
         suggestions = recommend_need_aware(
             self._pool.rows,
             self._excluded_names(report),
-            self._team_projections(report),
+            projections if projections is not None else self._team_projections(report),
             my_team=str(self.service.settings().get("my_team", "")),
             overall=current.overall,
             team_count=len(self.start_order),
@@ -978,7 +991,9 @@ class DraftBoard(QWidget):
             return "—"
         return f"mkt {suggestion.market * 100:.0f}% / fit {suggestion.fit_z:+.2f}z"
 
-    def _render_relative(self, report=None) -> None:
+    def _render_relative(
+        self, report=None, projections: dict[str, list[dict[str, str]]] | None = None
+    ) -> None:
         """Per-category BUILD/COAST/PUNT tags for my team vs the league (P3).
 
         9 columns x 4 rows (My team / League median / Gap / Tag). The Gap
@@ -991,12 +1006,14 @@ class DraftBoard(QWidget):
         """
         if report is None:
             report = self._report
+        if projections is None:
+            projections = self._team_projections(report)
         my_team = str(self.service.settings().get("my_team", ""))
         if not my_team or not self.start_order:
             self.relative_panel.setVisible(False)
             return
         tags = category_tags(
-            self._team_projections(report),
+            projections,
             my_team,
             self._pool.rows,
             self._excluded_names(report),
@@ -1009,7 +1026,7 @@ class DraftBoard(QWidget):
         # per-game values: season totals scaled by each team's games played
         # (pct cats are already rates); the league spread normalizes the
         # gap color (z-score-ish input per ``stat_color``)
-        team_rows = self._team_projections(report)
+        team_rows = projections
         projections = {
             team: project_roster(team_rows, team)
             for team, team_rows in team_rows.items()

@@ -7,18 +7,25 @@ module function directly, no view construction.
 
 import os
 import sys
+import time
 from pathlib import Path
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"  # must be set before any PySide6 import
 
+import ball_buddy.ui.views._roster as roster_mod
 from ball_buddy.domain import picks as picks_mod
 from ball_buddy.domain.keepers import KeeperEntry
 from ball_buddy.domain.keepers import save as save_keepers
+from ball_buddy.domain.players import PlayerPool
 from ball_buddy.io.pool.importer import FIELDNAMES, write_csv
 from ball_buddy.io.yahoo.client import YahooClient
 from ball_buddy.io.yahoo.snapshot import save_snapshot, to_snapshot
 from ball_buddy.services.sync import SyncService
-from ball_buddy.ui.views._roster import team_roster_names, team_roster_rows
+from ball_buddy.ui.views._roster import (
+    clear_cache,
+    team_roster_names,
+    team_roster_rows,
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tests.io.test_snapshot import load_results  # noqa: E402
@@ -107,3 +114,53 @@ def test_missing_only_counts_unresolvable_names(tmp_path: Path) -> None:
     rows, missing = team_roster_rows(service, "Red")
     assert [row["name"] for row in rows] == ["P1"]
     assert missing == ["Absent"]
+
+
+def test_quad_cache_hits_and_invalidates(tmp_path: Path, monkeypatch) -> None:
+    """R5.2: the (pool, keepers, picks, aliases) quad loads once per data
+    dir until a file mtime changes; ``clear_cache()`` forces a reload."""
+    service = _service(tmp_path, [P1, P2])
+    keepers_path = service.data_dir / "keepers.json"
+    save_keepers(
+        [KeeperEntry(team="Red", player="P1", cost_round=1)], keepers_path
+    )
+    # Count pool loads through the module's own PlayerPool reference.
+    real_load = PlayerPool.load.__func__
+    counts = {"n": 0}
+
+    def counting_load(cls, path):
+        counts["n"] += 1
+        return real_load(cls, path)
+
+    monkeypatch.setattr(roster_mod.PlayerPool, "load", classmethod(counting_load))
+    clear_cache()  # don't rely on other tests' cache state
+
+    rows1, missing1 = team_roster_rows(service, "Red")
+    assert [row["name"] for row in rows1] == ["P1"]
+    assert counts["n"] == 1
+    # Identical state -> cache hit, no reload (team_roster_rows must reuse
+    # the cached pool too, not load a second time).
+    rows2, missing2 = team_roster_rows(service, "Red")
+    assert (rows2, missing2) == (rows1, missing1)
+    assert counts["n"] == 1
+
+    # Mtime change on keepers.json -> the whole quad reloads and reflects it.
+    # Explicit utime: don't rely on filesystem timestamp resolution.
+    save_keepers(
+        [
+            KeeperEntry(team="Red", player="P1", cost_round=1),
+            KeeperEntry(team="Red", player="P2", cost_round=2),
+        ],
+        keepers_path,
+    )
+    os.utime(keepers_path, (keepers_path.stat().st_atime, time.time() + 1000))
+    rows3, _missing3 = team_roster_rows(service, "Red")
+    assert [row["name"] for row in rows3] == ["P1", "P2"]
+    assert counts["n"] == 2
+
+    # clear_cache() forces a reload even with unchanged mtimes.
+    team_roster_rows(service, "Red")
+    assert counts["n"] == 2
+    clear_cache()
+    team_roster_rows(service, "Red")
+    assert counts["n"] == 3

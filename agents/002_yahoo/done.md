@@ -26,3 +26,15 @@ From agents/REVIEW-FIXES.md R2 (owner-decisions from cross-exam baked in: R2.2 b
 - UI surface (bookkept under 003_league R2): League ok-banner appends the warnings after "Synced just now." (4 lines, theme tokens, `result.extra.get("warnings") or []`).
 - Docs: README sign-in step — `oauth_cert.pem`/`oauth_key.pem` are local-only self-signed loopback keys; AGENTS.md M1 live-check step 5 — post-R2 manual re-run (sign-in → sync → offline fallback).
 - Verify: tests/io 95+1 skipped, tests/services 15, test_league_view 16, ruff clean; exe rebuilt (5.74MB). Pending: user manual live check (AGENTS.md step 5) — note the live league fetch is still behind the app-authorization 403 wall (see status), so the check may only exercise sign-in + offline fallback.
+
+## 2026-10-11 — R5a — R5a: SyncService.load_last_cached() — mtime-ns-keyed memo over (snapshot.json, players.csv, aliases.json), existence-aware; explicit invalidation in reset_all_data/save_sign_in/save_aliases/run; effective_snapshot routed through the cache; 5 view init call-sites switched (post-mutation load_last sites stay uncached); counter + re-bridge invalidation tests; sweeps 006 R4 doc bookkeeping; exe rebuilt
+
+`services/sync.py` gained `_last_cache` + `load_last_cached()` (sync.py:246-258): memo of `load_last()`'s `SyncResult`, keyed on `st_mtime_ns` of the three bridge inputs (snapshot.json, players.csv, aliases.json — sync.py:234-241), existence-aware (missing file = None in the key). Plain `load_last()` stays the uncached truth. Explicit invalidation in `reset_all_data` (:74), `save_aliases` (:84), `save_sign_in` (:159), `run` (:179, before file rewrite) — belt-and-suspenders over mtime keying. `effective_snapshot()` now routes through the cache (sync.py:226); manual/offline mode unaffected (no snapshot.json → empty cached result → `manual_snapshot` fallback).
+
+View init call-sites switched to `load_last_cached()`: league.py:244, lineups.py:198, matchup.py:249, trades.py:185, waivers.py:172 (5 sites — reviewer-audited: the only remaining `load_last()` calls in ball_buddy/ are league.py:279/296/627/665, all post-user-action file mutations: inbox import, inbox undo, sign-in dialog close, pool-import dialog close — safe path is explicit re-read).
+
+Reviewer PASS: cache shares one SyncResult across views — verified no view mutates the snapshot dict in place; `SyncWorker` (QThread) only calls `run()` (invalidation is a GIL-atomic attr swap, worst case one stale frame, identical to pre-R5 behavior); st_mtime_ns (100ns) resolution, tests assert RESULT changes not call counts.
+
+New tests (tests/services/test_sync.py, 5): six-views + effective_snapshot counter → load_last ran exactly 1; players.csv mutation re-bridge (matched report gains the new row); aliases.json mutation re-bridge via save_aliases; reset + run invalidation sequence (calls 1→2→3); plain load_last still uncached.
+
+Tests: services 20; io 95 passed/1 skipped; 7 UI files 84 passed; ruff clean; exe rebuilt (dist/data preserved).
