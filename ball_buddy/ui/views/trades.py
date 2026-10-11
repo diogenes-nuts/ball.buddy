@@ -182,7 +182,7 @@ class TradeView(QWidget):
         self.team_combo.currentIndexChanged.connect(self._rebuild_give_combos)
         self.opp_combo.currentIndexChanged.connect(self._rebuild_give_combos)
 
-        self.apply_result(service.load_last())
+        self.apply_result(service.load_last_cached())
         _offline.apply_view_fallback(self, service, self.offline_banner)
 
     # -- data loading -----------------------------------------------------

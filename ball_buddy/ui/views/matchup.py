@@ -246,7 +246,7 @@ class MatchupView(QWidget):
         self.week_combo.currentIndexChanged.connect(self._recompute)
         self.tie_break_combo.currentIndexChanged.connect(self._on_tie_break_changed)
 
-        self.apply_result(service.load_last())
+        self.apply_result(service.load_last_cached())
         _offline.apply_view_fallback(self, service, self.offline_banner)
 
     # -- data loading -----------------------------------------------------

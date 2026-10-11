@@ -241,7 +241,7 @@ class LeagueView(QWidget):
         self.splitter.setStretchFactor(2, 2)
         root.addWidget(self.splitter, 1)
 
-        last = service.load_last()
+        last = service.load_last_cached()
         self.apply_result(last)
         self._apply_manual_fallback()
         # Launch scan: import any valid Hashtag exports left in data/inbox.

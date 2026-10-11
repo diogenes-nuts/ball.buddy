@@ -169,7 +169,7 @@ class WaiverView(QWidget):
 
         self.budget_spin.valueChanged.connect(self._save_budget)
 
-        self.apply_result(service.load_last())
+        self.apply_result(service.load_last_cached())
         _offline.apply_view_fallback(self, service, self.offline_banner)
 
     # -- data loading -----------------------------------------------------

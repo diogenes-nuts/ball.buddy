@@ -49,6 +49,9 @@ class SyncService:
         self.snapshot_path = self.data_dir / "snapshot.json"
         self.aliases_path = self.data_dir / "aliases.json"
         self.pool_path = self.data_dir / "players.csv"
+        # R5.1: memo of load_last() keyed on the mtimes of every file it
+        # reads (see _last_cache_key). None = empty/invalid.
+        self._last_cache: tuple[tuple[float | None, ...], SyncResult] | None = None
 
     # -- settings ------------------------------------------------------------
 
@@ -68,6 +71,7 @@ class SyncService:
         Returns True if the dir is fully wiped; False if something is still
         there (e.g. a locked file), so callers can tell the user.
         """
+        self._invalidate_last_cache()
         shutil.rmtree(self.data_dir, ignore_errors=True)
         return not self.data_dir.exists()
 
@@ -77,6 +81,7 @@ class SyncService:
 
     def save_aliases(self, aliases: dict[str, str]) -> None:
         """Persist the user-editable alias table (``{"roster": "pool"}``)."""
+        self._invalidate_last_cache()
         self.aliases_path.parent.mkdir(parents=True, exist_ok=True)
         self.aliases_path.write_text(
             json.dumps(aliases, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -151,6 +156,7 @@ class SyncService:
 
     def save_sign_in(self, tokens: dict) -> None:
         """Persist a fresh token dict and drop any stale client."""
+        self._invalidate_last_cache()
         auth.save_tokens(self.data_dir, tokens)
         self._client = None  # next sync builds a client from the fresh token
 
@@ -170,6 +176,7 @@ class SyncService:
         Raises nothing for auth/network failures — they are encoded in the
         returned :class:`SyncResult`.
         """
+        self._invalidate_last_cache()  # this call rewrites the data files
         result = SyncResult()
         try:
             client = self._build_client()
@@ -216,13 +223,39 @@ class SyncService:
         doc is not written to snapshot.json — the real Yahoo snapshot always
         wins once one exists.
         """
-        document = self.load_last().snapshot
+        document = self.load_last_cached().snapshot
         if document is None:
             manual = (self.settings().get("manual_teams") or [])
             document = snapshot_mod.manual_snapshot(
                 manual, str(self.settings().get("league_id", ""))
             ) or None
         return document
+
+    def _last_cache_key(self) -> tuple[float | None, ...]:
+        """Cache key: mtime_ns of each file load_last() reads (snapshot.json,
+        players.csv, aliases.json); a missing file contributes None, so
+        add/remove/replace of any of the three always changes the key."""
+        return tuple(
+            path.stat().st_mtime_ns if path.exists() else None
+            for path in (self.snapshot_path, self.pool_path, self.aliases_path)
+        )
+
+    def _invalidate_last_cache(self) -> None:
+        self._last_cache = None
+
+    def load_last_cached(self) -> SyncResult:
+        """Memoized :meth:`load_last` (R5.1).
+
+        The parsed snapshot + bridge report is reused across view
+        constructions as long as snapshot.json, players.csv, and
+        aliases.json are all unchanged (same existence AND mtime); the
+        first call after any change re-runs :meth:`load_last` and stores
+        the result. Views share the returned :class:`SyncResult` — callers
+        must treat it as read-only (all current callers do).
+        """
+        if self._last_cache is None or self._last_cache[0] != self._last_cache_key():
+            self._last_cache = (self._last_cache_key(), self.load_last())
+        return self._last_cache[1]
 
     def load_last(self) -> SyncResult:
         """Offline fallback: the last saved snapshot + its age (or empty).

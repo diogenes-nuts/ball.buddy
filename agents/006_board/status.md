@@ -43,4 +43,8 @@ Unchanged from before the rewrite: SetupDialog owns team list/order/keepers/my-t
 ## R3 (2026-10-11)
 
 - `board.py` imports `CAT_LABELS` from `ui/views/_common.py` (was `matchup.py`); pool-bridging for the roster panel now runs through the shared `ui/views/_roster.py`.
+
+## R4 (2026-10-11)
+
+- Recommendations rail: `Suggestion` now carries structured `market`/`fit_z` fields (scorer populates; `fit_z` = raw weighted fit, None on a degenerate fit range; M2.3 fallback stays None → em dash). `board._mkfit` reads the fields directly — the reason-string regex parsing (`_MKT_RE`/`_FIT_RE`) is gone; reason strings unchanged.
 Plans: dev.md. History: git log; done.md.

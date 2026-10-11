@@ -291,3 +291,107 @@ def test_effective_snapshot_real_snapshot_wins_over_manual(tmp_path):
     doc = service.effective_snapshot()
     assert doc is not None
     assert doc["source"] != "manual"
+
+
+# -- R5.1: cached load_last ----------------------------------------------------
+
+
+def _synced_service(tmp_path: Path) -> SyncService:
+    """Service with a real snapshot.json + players.csv (and no aliases yet)."""
+    service = make_service(tmp_path, client=FakeQuery())
+    write_pool(service)
+    assert service.run().ok
+    return service
+
+
+def test_load_last_cached_counts_one_load_for_six_views(tmp_path):
+    """Six view constructions + effective_snapshot() -> exactly 1 load_last."""
+    service = _synced_service(tmp_path)
+    calls = []
+    original = service.load_last
+
+    def counting_load_last():
+        calls.append(1)
+        return original()
+
+    service.load_last = counting_load_last  # type: ignore[method-assign]
+    for _ in range(6):
+        result = service.load_last_cached()
+        assert result.snapshot is not None
+        assert result.report is not None
+    doc = service.effective_snapshot()
+    assert doc is not None
+    assert len(calls) == 1
+
+
+def test_load_last_cached_rebridges_after_pool_change(tmp_path):
+    """Adding a pool row (players.csv mtime changes) -> the next cached call
+    re-bridges and the matched report actually changes."""
+    service = _synced_service(tmp_path)
+    first = service.load_last_cached()
+    assert "Ghost Player" not in first.report.matched  # not in pool yet
+    second = service.load_last_cached()
+    assert second.report.matched == first.report.matched  # still cached, unchanged
+
+    # Append a pool row matching the unmatched roster name (edit -> new mtime).
+    service.pool_path.write_text(
+        service.pool_path.read_text(encoding="utf-8")
+        + "Ghost Player,PG,PHX,60\n",
+        encoding="utf-8",
+    )
+    third = service.load_last_cached()
+    assert third.report.matched.get("Ghost Player") == "Ghost Player"
+
+
+def test_load_last_cached_rebridges_after_alias_change(tmp_path):
+    """save_aliases invalidates: the next cached call resolves the alias and
+    the bridge report changes."""
+    service = _synced_service(tmp_path)
+    first = service.load_last_cached()
+    unmatched = {name for name, _ in first.report.unmatched}
+    assert "Shaquille O'Neal" in unmatched
+
+    service.save_aliases({"Shaquille O'Neal": "Karl Malone"})
+    second = service.load_last_cached()
+    assert second.report.matched.get("Shaquille O'Neal") == "Karl Malone"
+    assert "Shaquille O'Neal" not in {name for name, _ in second.report.unmatched}
+
+
+def test_load_last_cached_invalidated_by_reset_and_run(tmp_path):
+    service = _synced_service(tmp_path)
+    calls = []
+    original = service.load_last
+
+    def counting_load_last():
+        calls.append(1)
+        return original()
+
+    service.load_last = counting_load_last  # type: ignore[method-assign]
+    service.load_last_cached()
+    assert len(calls) == 1
+
+    service.reset_all_data()  # wipes every file -> existence flip in the key
+    assert service.load_last_cached().snapshot is None
+    assert len(calls) == 2
+
+    write_pool(service)
+    assert service.run().ok
+    cached = service.load_last_cached()  # run() rewrote snapshot.json
+    assert cached.snapshot is not None
+    assert len(calls) == 3
+
+
+def test_load_last_stays_uncached(tmp_path):
+    """The plain accessor must keep re-reading files on every call."""
+    service = _synced_service(tmp_path)
+    calls = []
+    original = service.load_last
+
+    def counting_load_last():
+        calls.append(1)
+        return original()
+
+    service.load_last = counting_load_last  # type: ignore[method-assign]
+    service.load_last()
+    service.load_last()
+    assert len(calls) == 2
