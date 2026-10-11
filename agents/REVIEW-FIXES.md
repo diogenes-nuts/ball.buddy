@@ -113,16 +113,19 @@ remove private-attribute dependence.
    (scout the installed package source first). Tests in
    `tests/io/test_yahoo_client.py`: each class of raised exception maps to
    the right error type and message.
-2. **`io/yahoo/client.py:173` — one `get_team_matchups` per team** (12+
-   calls per sync; rate-limit prone). Scout yfpy's API for a league-level
-   variant (`get_league_matchups_by_week(week)` or similar) and pick the
-   minimum-call shape that still yields the full-season schedule the
-   snapshot dedupe expects (`snapshot._schedule_from_matchups` is unchanged
-   — it already dedupes by (week, pair)). If yfpy only offers per-week
-   league calls, loop weeks 1..playoff-start (still ≤ ~17 calls, and no
-   per-team fan-out); document the chosen shape in the docstring. Tests:
-   existing `tests/io/test_yahoo_client.py` fetch_all test updated to the
-   new call pattern with a fake query.
+2. **`io/yahoo/client.py:173` — one `get_team_matchups` per team** (12
+   calls per sync). Goal: verify + document the minimum-call shape.
+   Expected outcome: **no code change** — per-team is the floor. yfpy's
+   `get_team_matchups` is one HTTP query per team
+   (`/fantasy/v2/team/{key}/matchups`, yfpy/query.py:2663, full season
+   incl. playoff matchups), and the only league-level variant is
+   `get_league_matchups_by_week(week)` (query.py:1849) needing ~17–20
+   calls. Do NOT implement the per-week loop: more calls, and bounding it
+   at "weeks 1..playoff-start" (as this item originally did) would drop
+   playoff rows from the schedule. Action: confirm the per-team shape in
+   the installed yfpy source, note the call count in `fetch_all`'s
+   docstring; the existing `tests/io/test_yahoo_client.py` fetch_all test
+   stays as-is.
 3. **`io/yahoo/snapshot.py:143` — `_settings_of` reads yfpy's private
    `_extracted_data`.** Extract an explicit allowlist of fields
    (`draft_type`, `draft_pick_time`, `draft_time`, and whatever the League
@@ -228,13 +231,23 @@ Goal: remove redundant I/O and recompute without changing any result.
 
 1. **`services/sync.py` — cached `load_last`.** Add
    `load_last_cached()` that memoizes the parsed snapshot + bridge report
-   keyed on the mtimes of `snapshot.json` and `players.csv` (re-bridge only
-   when either changed); `reset_all_data`/`save_sign_in`/`run` invalidate
+   keyed on the mtimes of `snapshot.json`, `players.csv`, AND
+   `aliases.json` (bridge_names consumes all three — sync.py:250 passes
+   `self.load_aliases()`; without the third key the M1 alias-edit flow
+   serves a stale matched table until the next sync). 
+   `reset_all_data`/`save_sign_in`/`save_aliases`/`run` invalidate
    explicitly. All six views' `apply_result(service.load_last())` init
    calls switch to the cached variant (single stat call instead of
-   CSV-parse + full bridge ×6). Keep plain `load_last()` as the uncached
-   truth for tests. Invalidation test in `tests/services/test_sync.py`:
-   mutate players.csv → next cached call re-bridges (matched count changes).
+   CSV-parse + full bridge ×6), AND `effective_snapshot()` is routed
+   through the cache — it currently calls the uncached `load_last()`
+   (sync.py:210) and is the board's rebuild path (board.py:715) plus
+   draft.py:82/setup_dialog.py:58/_offline.py:49; without this the
+   heaviest op still pays full cost and the acceptance count below
+   passes while the user-visible win is half-missed. Keep plain
+   `load_last()` as the uncached truth for tests. Invalidation test in
+   `tests/services/test_sync.py`: mutate players.csv → next cached call
+   re-bridges (matched count changes); same shape for mutating
+   aliases.json.
 2. **`ui/views/_roster.py` (from R3) — mtime-keyed cache** for the
    (players.csv, keepers.json, draft_picks.json, aliases.json) quad so view
    actions stop re-parsing four files per click. Cache lives in the module
@@ -273,9 +286,11 @@ undo, reset, save order) must invalidate or re-stat.
 4. `ui/views/lineups.py _render` — look up starter projections by name
    (`starter_proj` per player) instead of the positional
    `starter_proj.players[i]` pairing.
-5. `ui/views/setup_dialog.py _save` — stop writing `settings["version"]`
-   (io/state.save_json owns `version`); today it only shadows, but the
-   override path is a foot-gun if they ever diverge.
+5. ~~`setup_dialog._save` `settings["version"]` write~~ — **verified
+   absent (2026-10-15 cross-exam)**: no `settings["version"]` write exists
+   anywhere in the package (review's hit was M1-era pre-dialog-split
+   code); `_save` writes only manual_teams/manual_draft_order/my_team.
+   No action.
 6. `io/pool/importer.py validate_rows:242` — skip the duplicate-rank
    warning for blank ranks (multiple Yahoo-sourced rows all have `rank=""`
    → warning spam). Only warn for non-empty duplicate ranks.
@@ -303,3 +318,7 @@ components; final ROADMAP note that the review remediation is complete.
   allowlist + warning; full model-field mapping is future work if yfpy
   upgrades break it.
 - Deeper MC micro-optimization (R5.5) — deferred until real-world slowdown.
+- R2.2 per-week matchup loop — inferior (more calls) and lossy (drops
+  playoff rows); per-team shape kept as the documented minimum (see R2.2).
+- R6.5 `settings["version"]` override — stale review finding, verified
+  absent; no-op.
