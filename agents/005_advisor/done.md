@@ -65,3 +65,12 @@ New `ball_buddy/ui/views/_common.py`: single `CAT_LABELS` (was matchup.py:105) +
 Reviewer PASS: 4 roster copies had no behavioral differences beyond the rows-vs-names filter split (preserved). Note for R5: `team_roster_rows` loads the pool twice (pre-existing, cosmetic — R5 quad cache addresses it).
 
 Tests: test_roster 4, matchup 10, board 28, league 16, draft 5, lineup 5, trade 7, waiver 5, inbox 4, setup_dialog 13, sign_in 4, theme 5 — all pass; tests/domain 168; ruff clean; exe rebuilt (5.74MB, dist/data restored).
+
+## 2026-10-11 — R6 — R6 (docs): 005 R6 bookkeeping — trades del-layout no-op + lineups starter-by-name + trade.py mirrored-delta doc note (code swept with the shared R6 commit); carries 004/scaffold R6 dev+status marks
+
+Advisor-view dead code + one latent misalign (code committed in the shared R6 commit 90866de; this entry is the 005 bookkeeping):
+- `trades.py` give-grid teardown: deleted the no-op `layout = item.layout()` + `if layout is not None: del layout` branch — a `QLayoutItem` is a widget XOR a nested layout, and the widget branch already ran `deleteLater()` on the live set's complement, so `del layout` only dropped a Python reference.
+- `lineups.py` `_render`: per-starter Pts now resolved by NAME (`proj_by_name = {p.name: p for p in starter_proj.players}`; `player = proj_by_name.get(name)`). The old positional `starter_proj.players[i]` pairing misaligned every row after a starter missing from the pool (such names are filtered out of `starter_rows`, so the projection tuple is shorter than `result.starters`).
+- `domain/trade.py`: the `1 − p_win` mirrored-delta caveat (pushes counted as losses for both sides; bias cancels between baseline and after under the shared seed) is documented in the module docstring as an intentional, no-code-change decision.
+
+Tests: tests/domain + tests/io 264 passed/1 skipped; UI per-file (matchup/lineup/trade/board) 50 passed; ruff clean; exe rebuilt (dist/data preserved).
