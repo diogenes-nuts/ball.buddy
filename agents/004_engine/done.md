@@ -38,3 +38,7 @@ From agents/REVIEW-FIXES.md R1 (item 5).
 ## 2026-10-11 — R3 — R3: matchup.py no longer owns CAT_LABELS (now ui/views/_common.py) and _load_team_data is a one-line delegate to ui/views/_roster.py
 
 `_load_team_data` (matchup.py:292-295) is a one-line wrapper around `_roster.team_roster_rows` (new shared `ui/views/_roster.py`; see 005_advisor R3 for the shared module). `CAT_LABELS` moved out of matchup.py into `ui/views/_common.py` (single definition; matchup imports it). Pure refactor — matchup's table render, gap bars, and all 10 tests unchanged.
+
+## 2026-10-11 — R6 — R6 (docs): 004 R6 bookkeeping — matchup _roster_players init + getattr fallback drop (code swept with the shared R6 commit); carries 005 R6 done.md section
+
+`matchup.py` (code in shared R6 commit 90866de): `MatchupView.__init__` now sets `self._roster_players: tuple[tuple, tuple] = ((), ())` alongside the other `snapshot`/`last_result` inits, and `_render_tables` reads `self._roster_players` directly — the `getattr(self, "_roster_players", ((), ()))` fallback is gone (it papered over the missing init). Pure hygiene; matchup's 10 view tests green.
