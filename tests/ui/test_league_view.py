@@ -326,6 +326,36 @@ def test_manual_mode_renders_teams_and_order(qapp, tmp_path):
     assert view.schedule_empty.isHidden() is False
 
 
+def test_ok_banner_surfaces_sync_warnings(qapp, tmp_path):
+    # R2: warnings threaded into SyncResult.extra show on the ok banner
+    view = make_view(tmp_path, qapp)
+    save_snapshot(to_snapshot_from_fixture(), view.service.snapshot_path)
+    base = view.service.load_last()
+    assert base.snapshot is not None
+    from ball_buddy.services.sync import SyncResult
+
+    def ok_result(extra: dict | None = None) -> SyncResult:
+        return SyncResult(
+            ok=True,
+            snapshot=base.snapshot,
+            report=base.report,
+            snapshot_age_seconds=base.snapshot_age_seconds,
+            extra=extra or {},
+        )
+
+    view.apply_result(
+        ok_result(
+            {"warnings": ["Token not persisted: no refresh_token"]}
+        )
+    )
+    text = view.status_banner.text()
+    assert "Synced just now" in text
+    assert "Token not persisted" in text
+    # no warnings -> plain banner (unchanged behavior)
+    view.apply_result(ok_result())
+    assert view.status_banner.text() == "Synced just now."
+
+
 def test_manual_order_saved_offline(qapp, tmp_path):
     service = SyncService(tmp_path, client=YahooClient(FakeQuery(), "k", "s"))
     settings = service.settings()

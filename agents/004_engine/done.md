@@ -25,3 +25,11 @@
 - Tests: updated the order-sensitive display assertions in `tests/ui/test_matchup_view.py` (wl list, gaps list, marginal col 3 = pts; dash cols 9/10) and `tests/ui/test_board.py` relative panel (pts=col3, reb=col4). Seeded values (waiver ranking, 0.9763, trade delta_p) all UNCHANGED thanks to `MC_DRAW_ORDER`.
 - Verify: tests/domain 167, tests/io 85 (1 skip), tests/services 13, all tests/ui files green, ruff clean; `_smoke.py` re-run confirms P(A) seed42 = 0.9763 preserved with gaps emitting in the new order.
 - Open: real-week hand-check against synced data/ (no synced data in workspace); 4-4 rule commissioner confirmation (SPEC §1.1).
+
+## 2026-10-11 — R1b — R1b: Matchup marginal table side attribution by explicit (side, players) loop — identical player on both rosters renders one A + one B row
+
+From agents/REVIEW-FIXES.md R1 (item 5).
+
+- `ui/views/matchup.py:456-462` — marginal-table rows built via `for side, players in (("A", players_a), ("B", players_b))` instead of `side = "A" if player in players_a else "B"` (value-equality mislabeled an identical player on both rosters as "A").
+- Test: `test_matchup_view.py::test_marginal_table_identical_player_both_sides` — same pool row on both rosters → exactly one ("P1","A") and one ("P1","B") row.
+- Verify: test_matchup_view 10, ruff clean; exe rebuilt.

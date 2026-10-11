@@ -235,3 +235,12 @@ team / League median / Gap / Tag; stats color-coded); single-team roster panel
 REMOVED (pick model/persistence + undo stay — the strip drives them). Setup dialog
 unchanged.
 - Impl: board.py rewritten to the helper layout (grid deleted, pick model/persistence + undo + snake/keeper forfeits intact); theme.py stat-color helper (percentile-of-z, TO flipped, light+dark); relative panel transposed (cats as top row); roster panel single-team w/ dropdown + not-mine flag; recs rail top-N (settings rec_top_n, spin 1-20) w/ mkt/fit split + tag chips + verbatim reasons; available table model-based w/ search + pos filter + Log. Review fixes: dead _poolable_names removed, single tag-chip setBackground, blank z renders '' (not +0.0). Verify: every file passes individually; pre-existing offscreen combined-run 127 flake unchanged.
+
+## 2026-10-11 — R1b — R1b: picks.py DRAFT_ROUNDS re-export (MAX_COST_ROUND alias removed) + board _parse_z unparseable→None (renders empty, sorts last); 14-round snakes tested on both surfaces
+
+From agents/REVIEW-FIXES.md R1 (items 4 + 6; item 4 committed under 003/004 too, shared phase id).
+
+- `domain/picks.py` — `DRAFT_ROUNDS` now a re-export of `domain/league.py`'s constant (14); the old `DRAFT_ROUNDS = keepers.MAX_COST_ROUND` (13) aliasing is gone; `MAX_COST_ROUND = 13` stays (keeper costs 1..13, round 14 has no keeper cost — comment added).
+- `ui/views/board.py` — `_parse_z` `except ValueError: return None` (was 0.0), matching `_row_sort_key`'s unparseable=unknown contract; garbled z cells render empty and sort last (display sites already rendered None as "").
+- Tests: `test_board.py::test_pool_table_unparseable_z_renders_empty_and_sorts_last` (asc + desc); snake expectations updated to 2×14 (28 picks, "x/28" labels); test_draft_view snake 14*2.
+- Verify: test_board 28, test_draft_view 5, tests/domain 168, ruff clean; exe rebuilt.

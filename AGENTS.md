@@ -60,4 +60,9 @@ Pins per `pyproject.toml` (PySide6 6.11.2, yfpy 17.0.0, cryptography 50.0.2, pyt
 2. First sync: 12 real teams + managers appear; settings (draft time/type) populated. Pre-draft, the live order/schedule may be empty → use the up/down buttons + "Save order" for the manual start order; "No schedule yet" placeholder renders.
 3. League → "Import pool" → pick a saved Hashtag import-v4 HTML (e.g. `N:\LLM\projects\autodraft\data\hashtag_import.html`): matched/ambiguous/unmatched tables appear; add ambiguous players to `data/aliases.json`.
 4. Offline fallback: delete `data/yahoo_tokens.json` (or kill network) → restart → League shows "Offline — showing last snapshot (synced <age>)" banner, no crash.
-5. Do this **before** any exit/commit so the auto phase-commit doesn't sweep `data/` (it is gitignored, but verify tokens never land in git).
+5. After the R2 phase (Yahoo error-handling rework): re-run the cycle once
+   against the real league — Sign in to Yahoo → Sync now → offline fallback
+   (delete `data/yahoo_tokens.json`, restart → "Offline — showing last
+   snapshot" banner, no crash) — to confirm the new error mapping and
+   token persistence behave correctly live (user runs it).
+6. Do this **before** any exit/commit so the auto phase-commit doesn't sweep `data/` (it is gitignored, but verify tokens never land in git).

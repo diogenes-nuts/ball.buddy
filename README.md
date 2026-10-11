@@ -42,7 +42,11 @@ to start completely fresh.
    **Advanced → Proceed to localhost (unsafe)**. The app captures the code
    automatically afterwards. If the browser tab shows an error instead,
    click **Enter code manually** in the dialog and paste the URL from the
-   browser's address bar (or just the code).
+   browser's address bar (or just the code). (Safety note: the callback is
+   served over a locally generated self-signed certificate in
+   `data/oauth_cert.pem` / `data/oauth_key.pem` — a throwaway local-only
+   keypair for this machine's loopback sign-in; nothing about it is sent
+   anywhere.)
 3. **Sync now** — your 12 teams, managers, draft order, and schedule appear.
    Before the draft the live order/schedule may be empty: that's normal. Use
    the up/down buttons in the Draft order pane + **Save order** to set a

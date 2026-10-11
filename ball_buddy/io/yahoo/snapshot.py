@@ -139,9 +139,28 @@ def _standings_of(standings: object) -> list[dict]:
     return out
 
 
-def _settings_of(settings: object) -> dict:
-    data = getattr(settings, "_extracted_data", None)
-    return dict(data) if isinstance(data, dict) else {}
+# League settings the app actually consumes (draft fields for the snapshot
+# doc + waiver_type from the yfpy Settings model). Read via getattr, NOT via
+# yfpy's private ``_extracted_data`` (R2.3): if yfpy's model shape changes,
+# we degrade to a surfaced warning instead of silently returning {}.
+_SETTINGS_FIELDS = ("draft_type", "draft_pick_time", "draft_time", "waiver_type")
+
+
+def _settings_of(settings: object, warnings: list[str] | None = None) -> dict:
+    """Allowlist of league settings via getattr with None defaults."""
+    if settings is None:
+        return {}
+    out: dict = {}
+    for field in _SETTINGS_FIELDS:
+        value = getattr(settings, field, None)
+        if value is not None:
+            out[field] = value
+    if not out and warnings is not None:
+        warnings.append(
+            "League settings unavailable (yfpy Settings shape changed?) — "
+            "draft type/times are empty in this snapshot"
+        )
+    return out
 
 
 def _live_order(teams: object) -> list[str] | None:
@@ -189,7 +208,8 @@ def to_snapshot(
             order = resolved
             source = "manual-order"
 
-    settings = _settings_of(results.get("settings"))
+    warnings: list[str] = []
+    settings = _settings_of(results.get("settings"), warnings)
     return {
         "user": {"guid": _text(getattr(results.get("user"), "guid", None))},
         "league": {
@@ -208,6 +228,7 @@ def to_snapshot(
         "schedule": _schedule_from_matchups(results.get("matchups") or []),
         "standings": _standings_of(results.get("standings")),
         "source": source,
+        "warnings": warnings,
     }
 
 

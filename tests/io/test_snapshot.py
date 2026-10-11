@@ -87,6 +87,37 @@ def test_to_snapshot_sections():
     assert doc["standings"] == []
 
 
+def test_settings_allowlist_without_extracted_data():
+    """R2.3: settings are read via an explicit getattr allowlist, not yfpy's
+    private ``_extracted_data`` — a stub with plain attributes still works."""
+    results = load_results()
+
+    class BareSettings:
+        draft_type = "standard"
+        draft_pick_time = "2026-06-24T19:30:00Z"
+        draft_time = "2026-06-24T19:30:00Z"
+        waiver_type = "highest_bidder"
+
+    results["settings"] = BareSettings()
+    doc = to_snapshot(results, LEAGUE_ID)
+    assert doc["league"]["settings"]["draft_type"] == "standard"
+    assert doc["league"]["settings"]["waiver_type"] == "highest_bidder"
+    assert doc["draft"]["type"] == "standard"
+    assert doc["warnings"] == []
+
+
+def test_settings_stub_without_any_fields_warns():
+    """When the yfpy Settings model is unrecognized, degrade to an empty
+    settings dict + a surfaced warning, not a silent {} (R2.3)."""
+    results = load_results()
+    results["settings"] = object()  # no readable attributes at all
+    doc = to_snapshot(results, LEAGUE_ID)
+    assert doc["league"]["settings"] == {}
+    assert doc["draft"]["type"] is None
+    assert len(doc["warnings"]) == 1
+    assert "settings" in doc["warnings"][0].lower()
+
+
 def test_manual_order_fallback():
     results = load_results()
     for team in results["teams"]:

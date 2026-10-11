@@ -40,6 +40,13 @@ _TOKEN_FIELDS = (
 )
 
 
+# Narrow phrases identifying the USER's credentials as dead (R2). Deliberately
+# not "auth"/"oauth"/bare status codes: 403 "application is not authorized" is
+# an app-level ban (re-sign-in won't fix it), and league-authorization errors
+# contain "auth" without meaning a dead token.
+_LOGIN_PHRASES = ("invalid_grant", "invalid token", "token expired", "access token")
+
+
 class YahooClient:
     """One client per (league_id, game) pair; query is injectable for tests."""
 
@@ -139,7 +146,18 @@ class YahooClient:
         return time.time() - float(token_time) < 3240
 
     def _call(self, method: str, *args: object) -> object:
-        """Run one yfpy call, mapping auth failures to LoginRequiredError."""
+        """Run one yfpy call, mapping failures onto typed errors (R2).
+
+        Classified on the actual signal, not loose substrings:
+        - ``requests.HTTPError`` (yfpy raises these with ``.response``): 401
+          -> LoginRequiredError; 403 and everything else -> YahooError (a
+          403 is an app/league authorization problem, not a dead token).
+        - Token-dead phrases (``_LOGIN_PHRASES``) in any other exception
+          (yahoo_oauth / our own OAuth layer) -> LoginRequiredError.
+        - Everything else -> YahooError.
+        """
+        from requests.exceptions import HTTPError
+
         try:
             with contextlib.redirect_stdout(sys.stderr):
                 return getattr(self._query, method)(*args)
@@ -147,24 +165,42 @@ class YahooClient:
             raise LoginRequiredError(f"Yahoo login failed during {method} ({exc})") from exc
         except LoginRequiredError:
             raise
-        except Exception as exc:  # yahoo-oauth raises requests.* on dead tokens
+        except Exception as exc:
             message = str(exc) or exc.__class__.__name__
             lowered = message.lower()
             # 403 "application is not authorized" is an APP-level ban (Yahoo
             # disabled the app's fantasy read access), not a dead token — a
-            # re-sign-in won't fix it, so surface it as a distinct error.
+            # re-sign-in won't fix it, so surface it as a distinct error and
+            # take precedence over the 403 HTTPError branch below.
             if "application is not authorized" in lowered:
                 raise YahooError(
                     "Yahoo has blocked this app's fantasy access (403 "
                     "'application is not authorized'). Re-signing in won't "
                     f"help: {message}"
                 ) from exc
-            if any(word in lowered for word in ("token", "oauth", "auth", "401", "403")):
-                raise LoginRequiredError(f"Yahoo token is dead — sign in again: {message}") from exc
+            if isinstance(exc, HTTPError):
+                status = getattr(getattr(exc, "response", None), "status_code", None)
+                if status == 401:
+                    raise LoginRequiredError(
+                        f"Yahoo token is dead — sign in again: {message}"
+                    ) from exc
+                raise YahooError(f"Yahoo call {method} failed: {message}") from exc
+            if any(phrase in lowered for phrase in _LOGIN_PHRASES):
+                raise LoginRequiredError(
+                    f"Yahoo token is dead — sign in again: {message}"
+                ) from exc
             raise YahooError(f"Yahoo call {method} failed: {message}") from exc
 
     def fetch_all(self) -> dict:
-        """Run the M1 fetch set; raw yfpy models keyed by snapshot section."""
+        """Run the M1 fetch set; raw yfpy models keyed by snapshot section.
+
+        Matchups are fetched with one ``get_team_matchups`` call per team
+        (12 for a 12-team league) — verified in R2 to be the minimum-call
+        shape: the only league-level variant, ``get_league_matchups_by_week``,
+        needs one call per week (~17–20 across the season), and bounding it
+        at "weeks 1..playoff-start" would drop playoff matchups from the
+        schedule.
+        """
         teams = self._call("get_league_teams")
         matchups = []
         for team in teams:
@@ -181,8 +217,14 @@ class YahooClient:
             "matchups": matchups,
         }
 
-    def persist_token(self, data_dir: str | Path) -> None:
-        """Save the live token dict (refreshable) for the next launch."""
+    def persist_token(self, data_dir: str | Path, warnings: list[str] | None = None) -> None:
+        """Save the live token dict (refreshable) for the next launch.
+
+        Without a refreshable token (Yahoo returned no ``refresh_token``) the
+        save is skipped and a warning is appended to ``warnings`` (when
+        provided) so the user knows sign-in will be required every launch
+        instead of the token being lost silently (R2.5).
+        """
         if not self.logged_in:
             return
         from ball_buddy.io.yahoo import auth
@@ -190,8 +232,15 @@ class YahooClient:
         tokens = auth.extract_tokens(
             self._query, self._consumer_key, self._consumer_secret
         )
-        if all(tokens.get(field) for field in _TOKEN_FIELDS):
-            auth.save_tokens(data_dir, tokens)
+        missing = [field for field in _TOKEN_FIELDS if not tokens.get(field)]
+        if missing:
+            if warnings is not None:
+                warnings.append(
+                    "Token not persisted: Yahoo did not return "
+                    f"{', '.join(missing)} — sign-in will be required every launch"
+                )
+            return
+        auth.save_tokens(data_dir, tokens)
 
     def __getattr__(self, name: str) -> object:
         """Passthrough for direct yfpy access in tests/ad-hoc use."""

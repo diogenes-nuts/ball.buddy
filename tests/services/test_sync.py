@@ -128,6 +128,57 @@ def test_stale_token_is_refreshed_before_client_build(tmp_path, monkeypatch):
     assert saved["callback_uri"] == old["callback_uri"]
 
 
+def test_failed_token_refresh_does_not_overwrite_saved_tokens(tmp_path, monkeypatch):
+    """R2.4 regression: a failed refresh raises LoginRequiredError (needs_login,
+    not "unexpected sync error") and leaves the SAVED token file untouched
+    (refresh-then-save order — the save only happens after a fresh payload)."""
+    from ball_buddy.io.yahoo import auth as yahoo_auth
+    from ball_buddy.io.yahoo import oauth as yahoo_oauth
+
+    old = {
+        "access_token": "tok",
+        "guid": "987654321",
+        "refresh_token": "ref",
+        "callback_uri": "https://localhost:8480/callback",
+        "token_time": 1.0,  # very stale -> forces a refresh
+        "token_type": "bearer",
+        "consumer_key": "k",
+        "consumer_secret": "s",
+    }
+    yahoo_auth.save_tokens(tmp_path, old)
+    service = SyncService(tmp_path, client=None)
+    service.save_settings({"league_id": "847", "consumer_key": "k", "consumer_secret": "s"})
+    monkeypatch.setattr(
+        yahoo_oauth,
+        "refresh_access_token",
+        lambda *a, **k: (_ for _ in ()).throw(
+            yahoo_oauth.OAuthError("Yahoo token request failed (400): invalid_grant")
+        ),
+    )
+    result = service.run()
+    assert result.ok is False
+    assert result.needs_login is True
+    assert "sign in" in result.error.lower()
+    saved = yahoo_auth.load_tokens(tmp_path)
+    assert saved["access_token"] == "tok"  # old file intact
+    assert saved["refresh_token"] == "ref"
+
+
+def test_persist_warning_threads_into_sync_result(tmp_path):
+    """R2.5: Yahoo returns no refresh_token -> the warning surfaces in
+    SyncResult.extra["warnings"] so the UI banner can show it."""
+    client = FakeQuery()
+    client.oauth.refresh_token = None  # token without a refresh_token
+    service = make_service(tmp_path, client=YahooClient(client, "key", "secret"))
+    result = service.run()
+    assert result.ok, result.error
+    warnings = result.extra.get("warnings") or []
+    assert len(warnings) == 1
+    assert "not persisted" in warnings[0].lower()
+    # and nothing was written
+    assert not (tmp_path / "yahoo_tokens.json").exists()
+
+
 def test_token_expiry_needs_login(tmp_path):
     class DeadQuery:
         oauth = None

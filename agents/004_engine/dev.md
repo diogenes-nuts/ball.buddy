@@ -4,4 +4,4 @@
 
 ## Plan: Review remediation (2026-10-14) — see agents/REVIEW-FIXES.md
 
-This component participates in: R1 (matchup side-attribution fix), R3 (_common.py constants). No active phase until implementation starts.
+Participates in: R1 (done — R1b: matchup side-attribution fix, see done.md), R3 (_common.py constants).

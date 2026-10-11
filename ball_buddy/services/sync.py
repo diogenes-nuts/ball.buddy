@@ -112,12 +112,19 @@ class SyncService:
 
         settings = self.settings()
 
-        payload = oauth.refresh_access_token(
-            tokens["refresh_token"],
-            settings.get("consumer_key", ""),
-            settings.get("consumer_secret", ""),
-            tokens.get("callback_uri") or oauth.HTTPS_CALLBACK_URI,
-        )
+        try:
+            payload = oauth.refresh_access_token(
+                tokens["refresh_token"],
+                settings.get("consumer_key", ""),
+                settings.get("consumer_secret", ""),
+                tokens.get("callback_uri") or oauth.HTTPS_CALLBACK_URI,
+            )
+        except oauth.OAuthError as exc:
+            # A dead refresh token is a sign-in problem, not an unexpected
+            # sync error — route it to the UI's needs_login path (R2.4). The
+            # saved token file is untouched: the refresh failed before any
+            # save (refresh-then-save order).
+            raise LoginRequiredError("Yahoo sign-in expired — sign in again") from exc
         fresh = oauth.new_token_dict(
             payload,
             tokens["consumer_key"],
@@ -190,11 +197,13 @@ class SyncService:
             results, str(settings.get("league_id", "")), manual_order
         )
         snapshot_mod.save_snapshot(document, self.snapshot_path)
-        client.persist_token(self.data_dir)
-
+        warnings: list[str] = list(document.get("warnings") or [])
+        client.persist_token(self.data_dir, warnings)  # R2.5: surface non-persistence
         result.ok = True
         result.snapshot = document
         result.report = self.bridge_names(document)
+        if warnings:
+            result.extra["warnings"] = warnings
         return result
 
     def effective_snapshot(self) -> dict | None:

@@ -427,7 +427,10 @@ class LeagueView(QWidget):
         elif result.error:
             self._set_banner(self.status_banner, "banner-info", f"Sync failed: {result.error}")
         elif result.ok:
-            self._set_banner(self.status_banner, "banner-info", "Synced just now.")
+            banner = "Synced just now."
+            for warning in (result.extra.get("warnings") or []):
+                banner += f" \u2022 {warning}"
+            self._set_banner(self.status_banner, "banner-info", banner)
         else:
             stale = self._format_age(result.snapshot_age_seconds)
             self._set_banner(

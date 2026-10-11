@@ -2,8 +2,10 @@
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+import requests
 
 from ball_buddy.io.yahoo import auth
 from ball_buddy.io.yahoo.client import LoginRequiredError, YahooClient, YahooError
@@ -138,6 +140,73 @@ def test_403_app_ban_maps_to_yahoo_error_not_relogin():
         ),
     )
     with pytest.raises(YahooError, match="blocked this app's fantasy access"):
+        client.fetch_all()
+
+
+def _http_error(status: int, text: str) -> requests.HTTPError:
+    """requests.HTTPError as yfpy's raise_for_status produces it (.response set)."""
+    err = requests.HTTPError(text)
+    err.response = SimpleNamespace(status_code=status)
+    return err
+
+
+def test_http_401_maps_to_login_required():
+    client = make_client(
+        fail_method="get_league_teams",
+        fail_exc=_http_error(401, "401 Client Error: Unauthorized for url: https://..."),
+    )
+    with pytest.raises(LoginRequiredError, match="sign in again"):
+        client.fetch_all()
+
+
+def test_http_403_maps_to_yahoo_error_not_relogin():
+    """A 403 (e.g. private-league authorization failure) is NOT a dead token —
+    re-signing in can't fix it, so it must stay a plain YahooError (R2.1)."""
+    client = make_client(
+        fail_method="get_league_teams",
+        fail_exc=_http_error(403, "403 Client Error: Forbidden for url: https://..."),
+    )
+    with pytest.raises(YahooError, match="Yahoo call get_league_teams failed"):
+        client.fetch_all()
+
+
+def test_http_401_without_response_object_stays_yahoo_error():
+    """yfpy's rate-limit HTTPError (999) has no .response — must not be read
+    as an auth failure just because '401' might appear in the message."""
+    client = make_client(
+        fail_method="get_league_teams",
+        fail_exc=requests.HTTPError("Yahoo data unavailable due to rate limiting."),
+    )
+    with pytest.raises(YahooError, match="rate limiting"):
+        client.fetch_all()
+
+
+def test_invalid_grant_oauth_exception_maps_to_login_required():
+    client = make_client(
+        fail_method="get_league_teams",
+        fail_exc=RuntimeError("Yahoo token request failed (400): {\"error\":\"invalid_grant\"}"),
+    )
+    with pytest.raises(LoginRequiredError, match="sign in again"):
+        client.fetch_all()
+
+
+def test_private_league_auth_error_is_not_login_required():
+    """Regression for the old broad ("token","oauth","auth",...) classifier:
+    a message containing 'auth'/'authorization' without a dead-token phrase is
+    a league-access problem, not 'sign in again'."""
+    client = make_client(
+        fail_method="get_league_teams",
+        fail_exc=RuntimeError("403: you are not authorized to access this private league"),
+    )
+    with pytest.raises(YahooError, match="not authorized"):
+        client.fetch_all()
+
+
+def test_generic_exception_stays_yahoo_error():
+    client = make_client(
+        fail_method="get_league_teams", fail_exc=RuntimeError("connection reset")
+    )
+    with pytest.raises(YahooError, match="connection reset"):
         client.fetch_all()
 
 
@@ -276,3 +345,33 @@ def test_persist_token_skipped_when_not_logged_in(tmp_path: Path):
     client._query.oauth = M({"access_token": None})
     client.persist_token(tmp_path)
     assert auth.load_tokens(tmp_path) is None
+
+
+def test_persist_token_missing_refresh_token_warns(tmp_path: Path):
+    """R2.5: no refresh_token from Yahoo -> no silent non-persistence; the
+    warning is threaded out and no token file is written."""
+    client = make_client()
+    client._query.oauth = M(
+        {
+            "access_token": "tok",
+            "guid": "987654321",
+            "refresh_token": None,  # Yahoo returned none
+            "token_time": 1.0,
+            "token_type": "bearer",
+        }
+    )
+    warnings: list[str] = []
+    client.persist_token(tmp_path, warnings)
+    assert auth.load_tokens(tmp_path) is None
+    assert len(warnings) == 1
+    assert "not persisted" in warnings[0].lower()
+    assert "refresh_token" in warnings[0]
+    assert "every launch" in warnings[0]
+
+
+def test_persist_token_normal_has_no_warning(tmp_path: Path):
+    client = make_client()
+    warnings: list[str] = []
+    client.persist_token(tmp_path, warnings)
+    assert auth.load_tokens(tmp_path) is not None
+    assert warnings == []
