@@ -374,6 +374,10 @@ class DraftBoard(QWidget):
     #: SetupDialog (teams/order/keepers/my-team) and refreshes on accept.
     setup_requested = Signal()
 
+    #: Search dropdown height cap (rows); beyond this the popup's own
+    #: vertical scrollbar takes over.
+    SEARCH_POPUP_MAX_ROWS = 8
+
     def __init__(self, service: SyncService, keepers: list[KeeperEntry]) -> None:
         super().__init__()
         self.service = service
@@ -453,6 +457,10 @@ class DraftBoard(QWidget):
         # the popup before it is ever visible. Frameless + the focus-out
         # filter give the same close-on-click-away behavior.
         self.search_popup.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        # A parented top-level (no Qt.Popup) starts VISIBLE when the board
+        # first shows — briefly painting the name list at (0,0) over the
+        # banner. Explicitly start it hidden; _on_search_text owns show/hide.
+        self.search_popup.hide()
         self.search_popup.activated.connect(self._on_search_pick)
         self.name_edit.textChanged.connect(self._on_search_text)
         # Close the popup when the search box loses focus (tabbing away,
@@ -1159,6 +1167,15 @@ class DraftBoard(QWidget):
             # coordinates — mapToGlobal used to double the board's own
             # offset on a maximized window (popup landed mid-screen).
             self.search_popup.setFixedWidth(self.name_edit.width() + 4)
+            # Fixed width but NO fixed height → Qt used the sizeHint's
+            # minimum, a single row. Show up to SEARCH_POPUP_MAX_ROWS rows;
+            # beyond that the popup's own scrollbar takes over.
+            row_h = max(
+                self.search_popup.sizeHintForRow(0),
+                self.search_popup.fontMetrics().height() + 2,
+            )
+            rows = min(len(names), self.SEARCH_POPUP_MAX_ROWS)
+            self.search_popup.setFixedHeight(rows * row_h + 4)
             self.search_popup.move(
                 self.name_edit.mapTo(self, QPoint(0, self.name_edit.height()))
             )

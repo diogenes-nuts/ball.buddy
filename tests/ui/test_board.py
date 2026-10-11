@@ -613,6 +613,70 @@ def test_two_column_layout_right_rail_scroll(qapp, tmp_path):
     )
 
 
+def test_search_popup_hidden_until_searched(qapp, tmp_path):
+    """The search popup is a parented top-level (FramelessWindowHint only —
+    Qt.Popup was removed because it stole focus and the view's own
+    focus-out filter killed it). A non-Popup top-level starts VISIBLE, so
+    without the explicit hide() at construction it briefly paints the
+    name list at (0,0) over the banner when the window first shows.
+    Regression: it must be hidden at load, before any typing."""
+    board = make_board(tmp_path, [])
+    write_pool(board.service, POOL)
+    board.refresh()
+    board.resize(1400, 900)
+    board.show()
+    qapp.processEvents()
+    assert not board.search_popup.isVisible()
+
+
+def test_search_popup_height_scales_with_matches(qapp, tmp_path):
+    """The popup is width-fixed only, so without an explicit height Qt
+    falls back to the sizeHint minimum — a SINGLE row plus scrollbar.
+    The height must track the match count (capped at
+    SEARCH_POPUP_MAX_ROWS) so several names are visible at once."""
+    board = make_board(tmp_path, [])
+    write_pool(board.service, POOL)
+    board.refresh()
+    board.resize(1400, 900)
+    board.show()
+    qapp.processEvents()
+    row_h = max(
+        board.search_popup.sizeHintForRow(0),
+        board.search_popup.fontMetrics().height() + 2,
+    )
+    # 1 match ("One Aardvark") → exactly one row tall.
+    board.name_edit.setText("one")
+    qapp.processEvents()
+    assert board.search_popup.isVisible()
+    assert board.search_popup.height() == row_h + 4
+    # 5 matches ("e" is in every POOL name except "Six Fox") → five rows.
+    board.name_edit.setText("e")
+    qapp.processEvents()
+    assert board._search_filter.rowCount() == 5
+    assert board.search_popup.height() == 5 * row_h + 4
+    # Above the cap (8): add four more "e" names → 9 matches, but the
+    # popup caps at 8 rows (scrollbar takes over).
+    write_pool(
+        board.service,
+        POOL
+        + [
+            {"name": n, "pos": "PG", "rank": str(7 + i), "value": "10"}
+            for i, n in enumerate(
+                ["Seven Hare", "Eight Ibis", "Nine Jelly", "Ten Koala"]
+            )
+        ],
+    )
+    board.refresh()
+    # setText alone won't re-fire (text already "e") — clear first.
+    board.name_edit.clear()
+    board.name_edit.setText("e")
+    qapp.processEvents()
+    assert board._search_filter.rowCount() == 9
+    assert board.search_popup.height() == (
+        board.SEARCH_POPUP_MAX_ROWS * row_h + 4
+    )
+
+
 def test_search_dropdown_narrows_and_closes_on_blur(qapp, tmp_path):
     from PySide6.QtCore import QEvent, QPoint
     from PySide6.QtGui import QFocusEvent
