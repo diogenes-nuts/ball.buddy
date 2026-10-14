@@ -14,6 +14,7 @@ Top-level plan for ball.buddy, ported from `agents/SPEC.md` §7 (the spec remain
 | **M5** | 005_advisor | Lineup optimizer (SPEC §6.2), per-day, 10 actives + IR-aware | daily recommendations + explanations |
 | **M6** | 005_advisor | Trade analyzer (SPEC §6.3): what-if ΔP(win) per side, before/after category gaps, fairness flag | — |
 | **M7** | (packaging) | Installer-grade exe folder, icon, settings reset, error UX | hand to a friend; it works |
+| **M8** | 007_webui | UI migration: Electron + vanilla-TS frontend over the Python core via a FastAPI sidecar; style re-oriented around the app-ui-design skill (tokens.css) | parity with `v1-pyside` build; PySide6 deleted; fresh-clone build yields a working `dist\ball.buddy\ball.buddy.exe` |
 
 ## Component map (SPEC §4)
 
@@ -27,6 +28,15 @@ Top-level plan for ball.buddy, ported from `agents/SPEC.md` §7 (the spec remain
 ## Done — review remediation (2026-10-14 → 2026-10-15)
 
 Full-repo code review produced a six-phase remediation plan: **agents/REVIEW-FIXES.md** (R1 correctness bugs → R2 Yahoo error handling → R3 shared resolver refactor → R4 structured Suggestion fields → R5 caching/perf → R6 dead code + hygiene). **All six phases are implemented, reviewed, and committed** (per-component notes in each `agents/<NNN>/done.md`; the exe was rebuilt after every code-changing phase). The SPEC §1.1 "13 vs 14 rounds" question was resolved by the owner (2026-10-15): the SPEC is authoritative — `DRAFT_ROUNDS = 13`, the IR is a conditional 14th roster slot with no draft round.
+
+## M8 — Web UI migration (2026-10-15, planned)
+
+User decision: replace the PySide6 UI with Electron + vanilla TypeScript, keep the
+Python core unchanged behind a FastAPI sidecar, re-style around the `app-ui-design`
+skill (tokens.css is the single style source; all prior style decisions discarded),
+drop the clipboard-paste OAuth fallback (loopback redirect only). Pure feature port;
+packaging shape unchanged. Full phase plan (0–6, with exit criteria and risks):
+`agents/007_webui/dev.md`.
 
 ## Open items (SPEC §1.1)
 

@@ -9,5 +9,6 @@ One line per component: NNN_name — what it does (one sentence).
 - 002_yahoo — yfpy adapter (OAuth, sync league/teams/draft-order/schedule), atomic JSON snapshot, offline fallback
 - 003_league — local league model: teams, draft order, schedule, manual team order
 - 006_board — draft-day board (M2 complete): keeper entry + snake board + pool value recommender
+- 007_webui — M8 migration: Electron + vanilla-TS frontend over the Python core via a FastAPI sidecar; app-ui-design style (tokens.css); parity ref tag `v1-pyside`; planned, not started
 - 004_engine — 9-cat projection engine (gap mode + seeded MC win-prob, configurable tie-break) + Matchup view (M3 complete)
 - 005_advisor — waiver ranking (FAAB-aware delta-P) + lineup optimizer (start/sit) + trade analyzer (delta-P per side, fairness flag), each with its view (M4+M5+M6 complete); M7 packaging next
