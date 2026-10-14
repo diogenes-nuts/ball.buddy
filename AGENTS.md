@@ -4,7 +4,7 @@ Friend-facing first-run guide: `README.md` (run the exe, sign-in/sync/import ste
 
 ## Info
 
-_Build, test, and run commands + environment notes. Brief; no function/structure detail (that lives in component status docs under agents/)._
+_Build, test, and run commands + environment notes. Brief; no function/structure detail (that lives in component status docs under docs/)._
 
 ### Setup (once)
 
